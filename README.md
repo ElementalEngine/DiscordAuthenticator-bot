@@ -1,1 +1,1 @@
-# DiscordAuthenticator
+# Discord Game Authenticator

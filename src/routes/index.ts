@@ -5,14 +5,7 @@ import { AuthController } from '../controllers'
 const router = Router()
 
 const Routes = () => {
-  router.get(
-    '/',
-    AuthController.Validate,
-    AuthController.FetchDiscord,
-    AuthController.FetchDiscordConnections,
-    AuthController.ValidateSteam,
-    AuthController.RegisterUser
-  )
+  router.get('/', AuthController.authenticate, AuthController.registerUser)
   return router
 }
 

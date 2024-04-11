@@ -61,10 +61,15 @@ export const AuthController = {
       ({ id }) => id === config.discord.roles.member
     )
     role && member.roles.add(role)
-    await member.send({
-      content: 'You have been registered!',
-    })
-    res.json({ message: 'You have been registered!' })
+
+    const welcomeChannel = await guild?.channels.cache.get(
+      config.discord.channels.welcome
+    )
+    if (welcomeChannel?.isTextBased()) {
+      await welcomeChannel.send({
+        content: `<@${req.discord.id}>, you are now registered.\nPlease read <#${config.discord.channels.rules}> and <#${config.discord.channels.faq}>.`,
+      })
+    }
 
     //  Print out the steam id and discord id
     const discordChannel = guild?.channels.cache.get(

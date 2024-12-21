@@ -32,6 +32,8 @@ const discord = {
     member: process.env.ROLE_VERIFIED!,
     epic: process.env.ROLE_EPIC!,
     steam: process.env.ROLE_STEAM!,
+    Civ6Rank: process.env.ROLE_CIV6!,
+    Civ7Rank: process.env.ROLE_CIV7!,
   },
 }
 

@@ -1,8 +1,16 @@
+import mongoose from 'mongoose'
+
 import { config } from './config'
 import discord from './discord/index'
 import app from './server'
 
 discord.login(config.discord.token)
+
+mongoose.connect(config.mongoDb)
+.then(() => console.log('Connected to Database'))
+.catch((err) => {
+  throw err
+})
 
 app.listen(
   config.port,
@@ -11,3 +19,4 @@ app.listen(
     console.log(`Server running at http://${config.host}:${config.port}/`)
   }
 )
+

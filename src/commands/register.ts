@@ -5,6 +5,16 @@ import { config } from '../config'
 export const data = new SlashCommandBuilder()
   .setName('register')
   .setDescription('Complete registration to gain access to the server.')
+  // .addStringOption((option) =>
+  //   option.setName('Account Type')
+  //   .setDescription('Select the type of account you are registering.')
+  //   .setRequired(true)
+  //   .addChoices(
+  //     { name: 'Epic', value: 'epic' },
+  //     { name: 'Steam', value: 'steam' }
+  //   )
+  // )
+
 
 export const execute = async (interaction: ChatInputCommandInteraction) => {
   if (interaction.channelId !== config.discord.channels.welcome)

@@ -12,17 +12,17 @@ export const SteamController = {
         .getUserOwnedGames(steamid)
         .catch(console.error)
       const game = results?.find(
-        (game: any) => game.appID === config.steam.gameId
+        (game: any) => game.game.id === config.steam.gameId
       )
       if (!game)
         return {
           error:
             'You do not own the game. Please close this window and step through the instructions again',
         }
-      if (game.playTime < config.steam.playTime)
-        return {
-          error: `You do not have enough play time. You have ${game.playTime} minutes, you need ${config.steam.playTime} minutes. Please close this window and step through the instructions again`,
-        }
+      // if (game.playTime < config.steam.playTime)
+      //   return {
+      //     error: `You do not have enough play time. You have ${game.playTime} minutes, you need ${config.steam.playTime} minutes. Please close this window and step through the instructions again`,
+      //   }
       return { success: true }
     } catch (error) {
       return { error }

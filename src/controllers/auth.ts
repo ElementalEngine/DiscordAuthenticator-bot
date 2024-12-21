@@ -5,42 +5,64 @@ import { config } from '../config'
 import client from '../discord'
 import { DiscordController } from './discord'
 import { SteamController } from './steam'
+import { Player } from '../database/players'
 
 export const AuthController = {
   authenticate: async (req: any, res: Response, next: NextFunction) => {
-    if (!req.query.code) return res.json({ error: 'No code provided' })
-    if (!req.query.state)
-      return res.json({
+    if (!req.query.code) {
+      res.json({ error: 'No code provided' })
+      return
+    }
+    if (!req.query.state) {
+      res.json({
         error:
-          'Please request a new link from Discord by using /register - this link does not contain your Discord UserID',
+        'Please request a new link from Discord by using /register - this link does not contain your Discord UserID',
       })
+      return
+    }
     const { access_token, error } = await DiscordController.getAccessToken(
       req.query.code
     )
-    if (error) return res.json({ error })
+    if (error) {
+      res.json({ error })
+      return
+    } 
 
     const { profile, error: profileError } = await DiscordController.getProfile(
       access_token
     )
-    if (profileError) return res.json({ error: profileError })
-    if (profile.id !== req.query.state)
-      return res.json({
+    if (profileError) {
+      res.json({ error: profileError })
+      return
+    }
+    if (profile.id !== req.query.state) {
+      res.json({
         error:
-          'You are logged into two different Discord accounts - one on the website and one in your app. Log out of the website and try again or try again from the website.',
+        'You are logged into two different Discord accounts - one on the website and one in your app. Log out of the website and try again or try again from the website.',
       })
+      return
+    }
     req.discord = profile
 
     const { connections, error: connectionsError } =
       await DiscordController.getConnections(access_token)
-    if (connectionsError) return res.json({ error: connectionsError })
+    if (connectionsError) {
+      res.json({ error: connectionsError })
+      return
+    }
     const steam = connections.find(({ type }: any) => type === 'steam')
-    if (!steam)
-      return res.json({
+    if (!steam) {
+      res.json({
         error:
-          'Your steam account does not seem to be linked to discord. Please close this window and step through the instructions again',
+        'Your steam account does not seem to be linked to discord. Please close this window and step through the instructions again',
       })
+      return
+    }
     const { error: steamError } = await SteamController.validate(steam.id)
-    if (steamError) return res.json({ error: steamError })
+    if (steamError) {
+      res.json({ error: steamError })
+      return
+    }
     req.steamid = steam.id
     next()
   },
@@ -49,13 +71,17 @@ export const AuthController = {
     const discord = client as Client
     const guild = discord.guilds.cache.first()
     const member = await guild?.members.fetch(req.discord.id)
-    if (!member) return res.json({ error: 'Could not find member' })
+    if (!member) {
+      res.json({ error: 'Could not find member' })
+      return
+    }
     const { error: foundError } = await SteamController.checkSteamIdExists(
       req.steamid
     )
     if (foundError) {
       await member.send({ content: `${foundError}` })
-      return res.json({ error: foundError })
+      res.json({ error: foundError })
+      return
     }
     const role = guild?.roles.cache.find(
       ({ id }) => id === config.discord.roles.member
@@ -88,5 +114,19 @@ export const AuthController = {
         content: `Steam ID: ${req.steamid}\nDiscord ID: ${req.discord.id} (<@${req.discord.id}>)`,
       })
     }
+
+    //  Add to database
+    await Player.create({
+      discord_id: req.discord.id,
+      steam_id: req.steamid,
+      display_name: req.discord.global_name,
+      user_name: req.discord.username,
+    }).catch((error) => {
+      console.error('Error creating player', error)
+      res.json({ error: 'Error creating player' })
+      return
+    })
+    
+    res.json({ success: 'Registered' })
   },
 }

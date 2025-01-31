@@ -12,7 +12,7 @@ export const DiscordController = {
           code,
           grant_type: 'authorization_code',
           redirect_uri: `http://${config.host}:${config.port}`,
-          scope: 'identify connections',
+          scope: 'identify connections email',
         },
         {
           headers: {
@@ -52,7 +52,19 @@ export const DiscordController = {
         },
       })
       if (!data) return { error: 'Failed to fetch Discord profile.' }
-      return { profile: data }
+
+      return {
+        profile: {
+          id: data.id,
+          username: data.username,
+          discriminator: data.discriminator,
+          email: data.email, 
+          verified: data.verified,
+          locale: data.locale,
+          mfa_enabled: data.mfa_enabled,
+          premium_type: data.premium_type, // 0 = None, 1 = Nitro Classic, 2 = Nitro
+        },
+      }
     } catch (error) {
       return { error }
     }

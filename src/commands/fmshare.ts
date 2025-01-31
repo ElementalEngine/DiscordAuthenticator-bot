@@ -14,7 +14,7 @@ export const checkFamilyShareCommand = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild), // ⛔ Restrict to moderators during registration
 
   async execute(interaction: ChatInputCommandInteraction) {
-    const allowedChannelId = 'YOUR_CHANNEL_ID'; 
+    const allowedChannelId = 'CHANNEL_ID'; 
 
     if (interaction.channelId !== allowedChannelId) {
       return interaction.reply({
@@ -35,7 +35,6 @@ export const checkFamilyShareCommand = {
     await interaction.deferReply(); 
 
     const result = await SteamController.checkFamilyShare(steamid); 
-    // Return appropriate response based on the result from SteamController
     if (result.success) {
       await interaction.editReply(`✅ ${result.success}`);
     } else if (result.warning) {

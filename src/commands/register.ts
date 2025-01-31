@@ -5,15 +5,26 @@ import { config } from '../config'
 export const data = new SlashCommandBuilder()
   .setName('register')
   .setDescription('Complete registration to gain access to the server.')
-  // .addStringOption((option) =>
-  //   option.setName('Account Type')
-  //   .setDescription('Select the type of account you are registering.')
-  //   .setRequired(true)
-  //   .addChoices(
-  //     { name: 'Epic', value: 'epic' },
-  //     { name: 'Steam', value: 'steam' }
-  //   )
-  // )
+  .addStringOption((option) =>
+    option
+      .setName('account_type')
+      .setDescription('Select the type of account you are registering.')
+      .setRequired(true)
+      .addChoices(
+        { name: 'Epic', value: 'epic' },
+        { name: 'Steam', value: 'steam' }
+      )
+  )
+  .addStringOption((option) =>
+    option
+      .setName('civ_version')
+      .setDescription('Select the Civilization game you are playing.')
+      .setRequired(true)
+      .addChoices(
+        { name: 'Civilization VI', value: 'civ6' },
+        { name: 'Civilization VII', value: 'civ7' }
+      )
+  );
 
 
 export const execute = async (interaction: ChatInputCommandInteraction) => {

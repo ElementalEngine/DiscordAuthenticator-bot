@@ -21,17 +21,13 @@ const discord = {
   channels: {
     auth_log: process.env.CHANNEL_AUTHBOT_LOG_ID!,
     welcome: process.env.CHANNEL_WELCOME!,
-    discord_logs: process.env.CHANNEL_DISCORD_ID!,
     steam_log: process.env.CHANNEL_STEAM_ID!,
     epic_log: process.env.CHANNEL_EPIC_ID!,
-    rules: process.env.CHANNEL_RULES!,
-    faq: process.env.CHANNEL_FAQ!,
   },
   roles: {
+    moderator: process.env.ROLE_MODERATOR!,
     admin: process.env.ROLE_ADMIN!,
     member: process.env.ROLE_VERIFIED!,
-    epic: process.env.ROLE_EPIC!,
-    steam: process.env.ROLE_STEAM!,
     Civ6Rank: process.env.ROLE_CIV6!,
     Civ7Rank: process.env.ROLE_CIV7!,
   },
@@ -41,12 +37,8 @@ const steam = {
   apiKey: process.env.STEAM_API_KEY ?? '',
   gameId: 289070,
   playTime: 120,
-}
-
-const epic = {
-  apiKey: process.env.EPIC_API_KEY ?? '',
-  gameId: 'rocket-league',
-  playtime: 120,
+  gameIdCiv7: 1295660,
+  playTimeCiv7: 120,
 }
 
 export const config = {

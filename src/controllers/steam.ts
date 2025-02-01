@@ -24,7 +24,7 @@ export const SteamController = {
     }
   },
 
-  async checkFamilyShare(steamid: string, game: string) {
+  checkFamilyShare: async (steamid: string, game: string) => {
     // Determine the game ID based on the game name
     const gameId = config.steam[game === 'Civ6' ? 'gameId' : 'gameIdCiv7'];
   
@@ -34,15 +34,17 @@ export const SteamController = {
   
       // Use CheckAppOwnership to check if the user owns the game or is using Family Sharing
       const ownershipResponse = await steamClient.getUserOwnedGames(steamid);
-      const gameOwnership = ownershipResponse.find((game: any) => game.appID === gameId);
+      const ownsApp = ownershipResponse.some((game: any) => game.appid === gameId);
   
-      if (gameOwnership) {
+      if (ownsApp) {
         // User owns the game
         return { success: "User owns Civilization and is not using Family Sharing." };
       }
   
-      // Check if the user is playing via Family Sharing
-      const lenderSteamId = gameOwnership && (gameOwnership as any).ownersteamid ? (gameOwnership as any).ownersteamid : null;
+      // If the user doesn't own the game, check for Family Sharing
+      const lenderSteamId = (await steamClient.getGameDetails(gameId)).sharedWith;
+  
+      // Check if lender's Steam ID is available
       if (lenderSteamId) {
         // Look up the lender's Discord ID from the database
         const exists = await Player.findOne({ steam_id: lenderSteamId });
@@ -56,8 +58,9 @@ export const SteamController = {
         };
       }
   
-      // If we couldn't determine the lender's Steam ID
+      // If the lender's Steam ID is not found, check if the game is being shared (using other checks)
       return { warning: "User is playing Civilization via Family Sharing, but the lender's ID could not be determined." };
+  
   
     } catch (error) {
       // Log any errors and return a user-friendly message

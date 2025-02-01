@@ -5,13 +5,13 @@ import { fileURLToPath } from 'url';
 
 import { deploy } from './deploy'
 
-const client: any = new Client({
+const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 })
 
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename);
-client.commands = new Collection()
+(client as  any).commands = new Collection()
 const commandsPath = path.join(__dirname, '../commands')
 const commandFiles = fs
   .readdirSync(commandsPath)
@@ -20,7 +20,7 @@ for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file)
   const command = require(filePath)
     if ('data' in command && 'execute' in command) {
-      client.commands.set(command.data.name, command)
+      (client as any).commands.set(command.data.name, command)
     } else {
       console.log(
         `[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`

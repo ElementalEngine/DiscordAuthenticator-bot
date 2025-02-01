@@ -1,4 +1,4 @@
-import { CorsOptions } from 'cors'
+import e, { CorsOptions } from 'cors'
 import { config as env } from 'dotenv'
 import path from 'node:path'
 
@@ -19,10 +19,11 @@ const discord = {
   clientSecret: process.env.BOT_CLIENT_SECRET ?? '',
   guildId: process.env.DISCORD_GUILD_ID ?? '',
   channels: {
+    rules: process.env.CHANNEL_RULES_ID!,
+    about_us: process.env.CHANNEL_ABOUT_US_ID!,
     auth_log: process.env.CHANNEL_AUTHBOT_LOG_ID!,
     welcome: process.env.CHANNEL_WELCOME!,
     steam_log: process.env.CHANNEL_STEAM_ID!,
-    epic_log: process.env.CHANNEL_EPIC_ID!,
   },
   roles: {
     moderator: process.env.ROLE_MODERATOR!,

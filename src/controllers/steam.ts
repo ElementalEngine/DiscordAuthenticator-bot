@@ -2,13 +2,14 @@ import { Client, TextChannel } from 'discord.js';
 import SteamAPI from 'steamapi';
 import { config } from '../config';
 import client from '../discord';
+import { Player } from '../database/players'
 
 export const SteamController = {
-  validate: async (steamid: any) => {
+  validate: async (steamid: any, gameid: number) => {
     try {
       const steamClient = new SteamAPI(config.steam.apiKey);
       const results = await steamClient.getUserOwnedGames(steamid).catch(console.error);
-      const game = results?.find((game: any) => game.game.id === config.steam.gameId);
+      const game = results?.find((game: any) => game.game.id === gameid);
       if (!game)
         return {
           error: 'You do not own the game. Please close this window and step through the instructions again',
@@ -39,25 +40,34 @@ export const SteamController = {
     }
   },
 
-  checkFamilyShare: async (steamid: string) => {
+  checkFamilyShare: async (steamid: string, game: string) => {
+    const gameId = config.steam[game === 'Civ6' ? 'gameId' : 'gameIdCiv7']
+
     try {
       const steamClient = new SteamAPI(config.steam.apiKey);
       const ownedGames = await steamClient.getUserOwnedGames(steamid);
-      const ownsGame = ownedGames.some((g: any) => g.appid === config.steam.gameId);
+      const ownsGame = ownedGames.some((g: any) => g.appid === gameId);
 
       if (ownsGame) {
         return { success: "User owns Civilization and is not using Family Sharing." };
       }
 
       const recentGames = await steamClient.getUserRecentGames(steamid);
-      const civGame = recentGames.find((g: any) => g.appid === config.steam.gameId);
+      const civGame = recentGames.find((g: any) => g.appid === gameId);
 
       if (!civGame) {
         return { error: "User hasn't played Civilization recently or does not have access to it." };
       }
 
-      const lenderSteamId = await getLenderSteamId(steamid);
+      const lenderSteamId = await getLenderSteamId(steamid, gameId);
       if (lenderSteamId) {
+        //  Check database for lender's Discord ID/name using lenderSteamId
+        const exists = await Player.findOne({ steam_id: lenderSteamId })
+        if (exists) {
+          return {
+            warning: `User is playing Civilization via Steam Family Sharing.\nLender's Steam ID: **${lenderSteamId}**.\nLender's Discord ID: **${exists.discord_id}**`,
+          };
+        }
         return {
           warning: `User is playing Civilization via Steam Family Sharing.\nLender's Steam ID: **${lenderSteamId}**.`,
         };
@@ -78,10 +88,10 @@ interface SteamFamilyShareResponse {
   };
 }
 
-const getLenderSteamId = async (steamid: string): Promise<string | null> => {
+const getLenderSteamId = async (steamid: string, gameId: number): Promise<string | null> => {
   try {
     const response = await fetch(
-      `https://api.steampowered.com/IPlayerService/IsPlayingSharedGame/v1/?key=${config.steam.apiKey}&steamid=${steamid}&appid_playing=${config.steam.gameId}`
+      `https://api.steampowered.com/IPlayerService/IsPlayingSharedGame/v1/?key=${config.steam.apiKey}&steamid=${steamid}&appid_playing=${gameId}`
     );
 
     const data = await response.json() as SteamFamilyShareResponse;

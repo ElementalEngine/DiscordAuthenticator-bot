@@ -10,7 +10,7 @@ export const AuthLogs = {
     if (!logChannel) return console.error('Auth log channel not found.');
 
     const embed = new EmbedBuilder()
-      .setTitle('🔹 User Authentication Attempt')
+      .setTitle('🔹 User Successfully Authenticated')
       .setColor(0x5865F2) // Discord Blue
       .setThumbnail(`https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png?size=256`)
       .addFields(
@@ -27,30 +27,15 @@ export const AuthLogs = {
 
     await logChannel.send({ embeds: [embed] });
   },
-  
+
+  // Logs only successful registrations in steam_log for searching
   logRegistration: async (discordUser: any, steamId: string) => {
     const discord = client as Client;
-    const authLogChannel = discord.channels.cache.get(config.discord.channels.auth_log) as TextChannel;
     const steamLogChannel = discord.channels.cache.get(config.discord.channels.steam_log) as TextChannel;
-  
-    if (!authLogChannel || !steamLogChannel) return console.error('One or more log channels not found.');
-  
-    // Auth log with embed
-    const authEmbed = new EmbedBuilder()
-      .setTitle('✅ User Successfully Registered')
-      .setColor(0x57F287)
-      .setThumbnail(`https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=256`)
-      .addFields(
-        { name: '👤 User', value: `<@${discordUser.id}> (${discordUser.username}#${discordUser.discriminator})`, inline: false },
-        { name: '🆔 Discord ID', value: discordUser.id, inline: true },
-        { name: '🎮 Steam ID', value: steamId, inline: true }
-      )
-      .setFooter({ text: 'User Registration Log', iconURL: 'https://discord.com/assets/ffb0f7db0e06c693f7db.png' })
-      .setTimestamp();
-  
-    await authLogChannel.send({ embeds: [authEmbed] });
-  
-    // Steam log as plain text for easier searching
+
+    if (!steamLogChannel) return console.error('Steam log channel not found.');
+
+    // Log Steam ID separately for easier searching
     await steamLogChannel.send(
       `✅ **New Registration**\n` +
       `**Steam ID:** ${steamId}\n` +

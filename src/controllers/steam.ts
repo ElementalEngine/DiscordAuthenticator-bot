@@ -24,45 +24,28 @@ export const SteamController = {
     }
   },
 
-  checkSteamIdExists: async (steamid: string | number) => {
-    const discord = client as Client;
+  async checkFamilyShare(steamid: string, game: string) {
+    // Determine the game ID based on the game name
+    const gameId = config.steam[game === 'Civ6' ? 'gameId' : 'gameIdCiv7'];
+  
     try {
-      const channel = discord.channels.cache.get(config.discord.channels.steam_log) as TextChannel;
-      const messages = await channel.messages.fetch();
-      const found = messages.find(({ content }) => content.includes(`Steam ID: ${steamid}`));
-      if (found) {
-        const discordid = found.content.split('Discord ID: ')[1].split(' ')[0];
-        return { error: `Your Steam ID is already in use by (<@${discordid}>)` };
-      }
-      return { success: true };
-    } catch (error) {
-      return { error };
-    }
-  },
-
-  checkFamilyShare: async (steamid: string, game: string) => {
-    const gameId = config.steam[game === 'Civ6' ? 'gameId' : 'gameIdCiv7']
-
-    try {
+      // Initialize Steam API client
       const steamClient = new SteamAPI(config.steam.apiKey);
-      const ownedGames = await steamClient.getUserOwnedGames(steamid);
-      const ownsGame = ownedGames.some((g: any) => g.appid === gameId);
-
-      if (ownsGame) {
+  
+      // Use CheckAppOwnership to check if the user owns the game or is using Family Sharing
+      const ownershipResponse = await steamClient.getUserOwnedGames(steamid);
+      const gameOwnership = ownershipResponse.find((game: any) => game.appID === gameId);
+  
+      if (gameOwnership) {
+        // User owns the game
         return { success: "User owns Civilization and is not using Family Sharing." };
       }
-
-      const recentGames = await steamClient.getUserRecentGames(steamid);
-      const civGame = recentGames.find((g: any) => g.appid === gameId);
-
-      if (!civGame) {
-        return { error: "User hasn't played Civilization recently or does not have access to it." };
-      }
-
-      const lenderSteamId = await getLenderSteamId(steamid, gameId);
+  
+      // Check if the user is playing via Family Sharing
+      const lenderSteamId = gameOwnership && (gameOwnership as any).ownersteamid ? (gameOwnership as any).ownersteamid : null;
       if (lenderSteamId) {
-        //  Check database for lender's Discord ID/name using lenderSteamId
-        const exists = await Player.findOne({ steam_id: lenderSteamId })
+        // Look up the lender's Discord ID from the database
+        const exists = await Player.findOne({ steam_id: lenderSteamId });
         if (exists) {
           return {
             warning: `User is playing Civilization via Steam Family Sharing.\nLender's Steam ID: **${lenderSteamId}**.\nLender's Discord ID: **${exists.discord_id}**`,
@@ -72,37 +55,14 @@ export const SteamController = {
           warning: `User is playing Civilization via Steam Family Sharing.\nLender's Steam ID: **${lenderSteamId}**.`,
         };
       }
-
+  
+      // If we couldn't determine the lender's Steam ID
       return { warning: "User is playing Civilization via Family Sharing, but the lender's ID could not be determined." };
+  
     } catch (error) {
+      // Log any errors and return a user-friendly message
       console.error("Error checking family share:", error);
       return { error: "Failed to check family share status. Please try again later." };
     }
   },
-};
-
-// 🛠️ Helper function to get the lender's Steam ID (the account that owns the game)
-interface SteamFamilyShareResponse {
-  response: {
-    lender_steamid: string;
-  };
-}
-
-const getLenderSteamId = async (steamid: string, gameId: number): Promise<string | null> => {
-  try {
-    const response = await fetch(
-      `https://api.steampowered.com/IPlayerService/IsPlayingSharedGame/v1/?key=${config.steam.apiKey}&steamid=${steamid}&appid_playing=${gameId}`
-    );
-
-    const data = await response.json() as SteamFamilyShareResponse;
-
-    if (data?.response?.lender_steamid && data.response.lender_steamid !== '0') {
-      return data.response.lender_steamid;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Error fetching lender Steam ID:', error);
-    return null;
-  }
 };

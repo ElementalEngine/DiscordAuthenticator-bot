@@ -11,10 +11,20 @@ export const checkFamilyShareCommand = {
         .setDescription("The Steam ID of the user you're checking.")
         .setRequired(true)
     )
+    .addStringOption((option) =>
+      option
+        .setName('game')
+        .setDescription('Civilization game to check for. Defaults to Civ6. Options: Civ6 or Civ7')
+        .addChoices([
+          { name: 'Civilization 6', value: 'Civ6' },
+          { name: 'Civilization 7', value: 'Civ7' },
+        ])
+        .setRequired(false)
+    )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild), // ⛔ Restrict to moderators during registration
 
   async execute(interaction: ChatInputCommandInteraction) {
-    const allowedChannelId = 'CHANNEL_ID'; 
+    const allowedChannelId = '1126522264460984360'; 
 
     if (interaction.channelId !== allowedChannelId) {
       return interaction.reply({
@@ -22,7 +32,6 @@ export const checkFamilyShareCommand = {
         ephemeral: true, 
       });
     }
-    // Check if the user has mod permissions (this check is crucial for runtime security)
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
       return interaction.reply({
         content: '❌ You do not have permission to use this command.',
@@ -31,10 +40,11 @@ export const checkFamilyShareCommand = {
     }
 
     const steamid = interaction.options.getString('steamid', true);
+    const game = interaction.options.getString('game') || 'Civ6';
 
     await interaction.deferReply(); 
 
-    const result = await SteamController.checkFamilyShare(steamid); 
+    const result = await SteamController.checkFamilyShare(steamid, game); 
     if (result.success) {
       await interaction.editReply(`✅ ${result.success}`);
     } else if (result.warning) {

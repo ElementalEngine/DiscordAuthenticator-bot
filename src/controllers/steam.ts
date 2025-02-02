@@ -68,4 +68,38 @@ export const SteamController = {
       return { error: "Failed to check family share status. Please try again later." };
     }
   },
+
+  checkGamesAddRole: async (steamid: string, game: 'Civ6' | 'Civ7') => {
+    try {
+      // Validate the Steam ID (ensure it's numeric)
+      if (!/^\d+$/.test(steamid)) {
+        return { error: '❌ Invalid Steam ID. Please provide a valid numeric Steam ID.' };
+      }
+  
+      // Map the game name to the corresponding game ID
+      const gameId = game === 'Civ6' ? config.steam.gameId : config.steam.gameIdCiv7;
+  
+      // Initialize Steam API client
+      const steamClient = new SteamAPI(config.steam.apiKey);
+  
+      // Fetch the user's owned games
+      const ownedGames = await steamClient.getUserOwnedGames(steamid);
+  
+      // If the request fails or the user owns no games
+      if (!ownedGames?.length) {
+        return { error: '⚠️ Unable to retrieve your owned games. Make sure your Steam profile is public.' };
+      }
+  
+      // Check if the user owns the selected game
+      const ownsGame = ownedGames.some(({ game: { id } }) => id === gameId);
+  
+      return ownsGame
+        ? { success: `✅ Verified! You own **${game}**.` }
+        : { error: `❌ You do not own **${game}** on Steam.` };
+  
+    } catch (error) {
+      console.error('[SteamController] Error checking game ownership:', error);
+      return { error: '❌ An error occurred while verifying ownership. Please try again later.' };
+    }
+  },
 };

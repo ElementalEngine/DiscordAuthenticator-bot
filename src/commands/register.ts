@@ -1,7 +1,6 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js'
-
-import { config } from '../config'
-import { Player } from '../database/players'
+import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMemberRoleManager } from 'discord.js';
+import { config } from '../config';
+import { Player } from '../database/players';
 
 export const data = new SlashCommandBuilder()
   .setName('register')
@@ -30,40 +29,44 @@ export const data = new SlashCommandBuilder()
 export const execute = async (interaction: ChatInputCommandInteraction) => {
   const type = interaction.options.getString('account_type') || 'steam';
   const game = interaction.options.getString('game') || 'Civ6';
-  if (interaction.channelId !== config.discord.channels.welcome)
-    return await interaction.reply({
-      content: `This command can only be used in <#${config.discord.channels.welcome}>`,
-      ephemeral: true,
-    })
-  if (
-    (interaction as any).member.roles.cache.some(
-      (role: any) => role.id === config.discord.roles.member
-    )
-  )
-    return await interaction.reply({
-      content: `You are already registered.`,
-      ephemeral: true,
-    })
 
-  const exist = await Player.findOne({ discordId: interaction.user.id })
-  console.log({ exist })
+  if (interaction.channelId !== process.env.CHANNEL_WELCOME) {
+    return await interaction.reply({
+      content: `This command can only be used in <#${process.env.CHANNEL_WELCOME}>`,
+      ephemeral: true,
+    });
+  }
+
+  const hasNonVerifiedRole = interaction.member?.roles instanceof GuildMemberRoleManager 
+    && interaction.member.roles.cache.has(process.env.ROLE_NON_VERIFIED!);
+
+  if (!hasNonVerifiedRole) {
+    return await interaction.reply({
+      content: '❌ You do not have the required role to use this command. Only non-verified users can run this.',
+      ephemeral: true,
+    });
+  }
+
+  // Check if the user is already registered
+  const exist = await Player.findOne({ discord_id: interaction.user.id });
   if (exist) {
     return await interaction.reply({
       content: `You are already registered.`,
       ephemeral: true,
-    })
+    });
   }
+
   if (type === 'epic') {
     return await interaction.reply({
-      content: `Epic account registration is not available yet. Please contact a moderator for assistance.`,
+      content: `Epic account registration is not available yet. Please contact a moderator.`,
       ephemeral: true,
-    })
-  
+    });
   }
-  const state = encodeURI(`${game.toLocaleLowerCase()}|${interaction.user.id}`)
 
+  // Generate OAuth link
+  const state = encodeURI(`${game.toLowerCase()}|${interaction.user.id}`);
   interaction.reply({
-    content: `The CPL Bot needs authorization in order to search your Discord profile for your linked Steam account. It uses Steam accounts to verify unique users.\n\n[Click here to authorize](${config.oauth}${state})`,
+    content: `The CPL Bot needs authorization to verify your linked Steam account.\n\n[Click here to authorize](${config.oauth}${state})`,
     ephemeral: true,
-  })
-}
+  });
+};

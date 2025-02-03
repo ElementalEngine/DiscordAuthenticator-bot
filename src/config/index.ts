@@ -19,24 +19,26 @@ const discord = {
   clientSecret: process.env.BOT_CLIENT_SECRET ?? '',
   guildId: process.env.DISCORD_GUILD_ID ?? '',
   channels: {
+    welcome: process.env.CHANNEL_WELCOME!,
     rules: process.env.CHANNEL_RULES_ID!,
     about_us: process.env.CHANNEL_ABOUT_US_ID!,
     auth_log: process.env.CHANNEL_AUTHBOT_LOG_ID!,
-    welcome: process.env.CHANNEL_WELCOME!,
     steam_log: process.env.CHANNEL_STEAM_ID!,
+    commands: process.env.CHANNEL_COMMANDS_ID!,
+    bot_commands: process.env.CHANNEL_BOT_COMMANDS_ID!,
   },
   roles: {
     moderator: process.env.ROLE_MODERATOR!,
     admin: process.env.ROLE_ADMIN!,
-    member: process.env.ROLE_VERIFIED!,
     Civ6Rank: process.env.ROLE_CIV6!,
     Civ7Rank: process.env.ROLE_CIV7!,
+    non_verified: process.env.ROLE_NON_VERIFIED!,
   },
 }
 
 const steam = {
   apiKey: process.env.STEAM_API_KEY ?? '',
-  gameId: 289070,
+  gameIdCiv6: 289070,
   playTime: 120,
   gameIdCiv7: 1295660,
   playTimeCiv7: 120,

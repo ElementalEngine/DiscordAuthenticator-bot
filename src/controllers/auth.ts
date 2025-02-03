@@ -1,6 +1,5 @@
 import { Client } from 'discord.js';
 import { NextFunction, Response } from 'express';
-
 import { config } from '../config';
 import client from '../discord';
 import { DiscordController } from './discord';
@@ -10,119 +9,110 @@ import { AuthLogs } from './authLogs';
 
 export const AuthController = {
   authenticate: async (req: any, res: Response, next: NextFunction) => {
-
     if (!req.query.code) {
-      res.json({ error: 'No code provided' });
-      return;
+      return res.json({ error: 'No code provided' });
     }
 
     if (!req.query.state) {
-      res.json({
-        error:
-          'Please request a new link from Discord by using /register - this link does not contain your Discord UserID',
+      return res.json({
+        error: 'Please request a new link using /register - this link does not contain your Discord UserID',
       });
-      return;
     }
 
     const [gameLower, userId] = decodeURI(req.query.state).split('|');
-    const game = config.steam[gameLower === 'civ6' ? 'gameId' : 'gameIdCiv7']
+    const game = config.steam[gameLower === 'civ6' ? 'gameIdCiv6' : 'gameIdCiv7'];
     if (!gameLower) {
-      res.json({ error: 'No game provided' });
-      return;
+      return res.json({ error: 'No game provided' });
     }
 
+    // 🔹 Get Discord access token
     const { access_token, error } = await DiscordController.getAccessToken(req.query.code);
-    if (error) {
-      res.json({ error });
-      return;
-    }
+    if (error) return res.json({ error });
 
+    // 🔹 Get Discord profile
     const { profile, error: profileError } = await DiscordController.getProfile(access_token);
-    if (profileError) {
-      res.json({ error: profileError });
-      return;
-    }
+    if (profileError) return res.json({ error: profileError });
+
     if (!profile || profile.id !== userId) {
-      res.json({
-        error:
-          'You are logged into two different Discord accounts - one on the website and one in your app. Log out of the website and try again or try again from the website.',
+      return res.json({
+        error: 'You are logged into different Discord accounts on the website and in the app. Log out and try again.',
       });
-      return;
     }
     req.discord = profile;
 
-    // 🔹 Log authentication attempt
-    await AuthLogs.logAuth(profile);
+    // 🔹 Check if user is already registered
+    const existingPlayer = await Player.findOne({
+      $or: [{ discord_id: profile.id }, { steam_id: profile.id }],
+    });
 
-    const { connections, error: connectionsError } = await DiscordController.getConnections(access_token);
-    if (connectionsError) {
-      res.json({ error: connectionsError });
-      return;
+    if (existingPlayer) {
+      return res.json({ error: 'You are already registered!' });
     }
+
+    // 🔹 Get Discord connections (to verify Steam link)
+    const { connections, error: connectionsError } = await DiscordController.getConnections(access_token);
+    if (connectionsError) return res.json({ error: connectionsError });
 
     const steam = connections.find(({ type }: any) => type === 'steam');
     if (!steam) {
-      res.json({
-        error:
-          'Your Steam account does not seem to be linked to Discord. Please close this window and step through the instructions again.',
+      return res.json({
+        error: 'Your Steam account is not linked to Discord. Please follow the instructions again.',
       });
-      return;
     }
 
+    // 🔹 Validate Steam account
     const { error: steamError } = await SteamController.validate(steam.id, game);
-    if (steamError) {
-      res.json({ error: steamError });
-      return;
-    }
+    if (steamError) return res.json({ error: steamError });
+
     req.steamid = steam.id;
     next();
   },
 
   registerUser: async (req: any, res: Response) => {
-    const [gameLower, userId] = decodeURI(req.query.state).split('|');
-
+    const [gameLower] = decodeURI(req.query.state).split('|');
     const discord = client as Client;
     const guild = discord.guilds.cache.first();
     const member = await guild?.members.fetch(req.discord.id);
-    if (!member) {
-      res.json({ error: 'Could not find member' });
-      return;
+
+    if (!member) return res.json({ error: 'Could not find member' });
+
+    // 🔹 Assign Civ6 or Civ7 rank role
+    const roleId = gameLower === 'civ6' ? config.discord.roles.Civ6Rank : config.discord.roles.Civ7Rank;
+    const role = guild?.roles.cache.get(roleId);
+    const nonVerifiedRole = guild?.roles.cache.get(process.env.ROLE_NON_VERIFIED!);
+
+    if (role) {
+      console.log(`Assigning role ${role.id} to ${req.discord.username}`);
+      await member.roles.add(role).catch(console.error);
+    } else {
+      console.error('Role not found!');
     }
 
-    const { error: foundError } = await SteamController.checkSteamIdExists(req.steamid);
-    if (foundError) {
-      await member.send({ content: `${foundError}` });
-      res.json({ error: foundError });
-      return;
-    }
-
-    const role = guild?.roles.cache.find(({ id }) => id === config.discord.roles.member);
-    role && member.roles.add(role);
-
-    const welcomeChannel = await guild?.channels.cache.get(config.discord.channels.welcome);
-    if (welcomeChannel?.isTextBased()) {
-      await welcomeChannel.send({
-        content: `<@${req.discord.id}>, you are now registered.\nPlease read <#${config.discord.channels.rules}> and <#${config.discord.channels.about_us}>.`,
-      });
+    // 🔹 Remove non-verified role if registration is complete
+    if (nonVerifiedRole) {
+      console.log(`Removing non-verified role from ${req.discord.username}`);
+      await member.roles.remove(nonVerifiedRole).catch(console.error);
+    } else {
+      console.error('Non-verified role not found!');
     }
 
     // 🔹 Log successful registration
     await AuthLogs.logRegistration(req.discord, req.steamid);
+    await AuthLogs.logAuth(req.discord); // 🔹 Moved here (only logs successful registrations)
 
+    // 🔹 Save to database
     const newPlayer = {
       discord_id: req.discord.id,
       steam_id: req.steamid,
       display_name: req.discord.global_name,
       user_name: req.discord.username,
-    }
+    };
 
-    //  Add to database
-    await Player.create(newPlayer).catch((error) => {
-      console.error('Error creating player', error);
-      res.json({ error: 'Error creating player' });
-      return;
-    });
-
-    res.json({ success: 'Registered' });
+    await Player.create(newPlayer)
+      .then(() => res.json({ success: 'Registered' }))
+      .catch((error) => {
+        console.error('Error creating player', error);
+        res.json({ error: 'Error creating player' });
+      });
   },
 };

@@ -1,7 +1,6 @@
 import axios from 'axios'
 import { OAuth2Routes, RouteBases, Routes } from 'discord.js'
 import { config } from '../config'
-import { AuthLogs } from './/authLogs';
 
 export const DiscordController = {
   getAccessToken: async (code: string) => {
@@ -55,7 +54,6 @@ export const DiscordController = {
   
       if (!data) return { error: 'Failed to fetch Discord profile.' };
 
-      
       const profile = {
         id: data.id,
         username: data.username,

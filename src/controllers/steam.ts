@@ -13,10 +13,10 @@ export const SteamController = {
         return {
           error: 'You do not own the game. Please close this window and step through the instructions again',
         };
-      // if (game.playTime < config.steam.playTime)
-      //   return {
-      //     error: `You do not have enough play time. You have ${game.playTime} minutes, you need ${config.steam.playTime} minutes. Please close this window and step through the instructions again`,
-      //   };
+      if (game.minutes < config.steam.playTime)
+        return {
+          error: `You do not have enough play time. You have ${game.minutes} minutes, you need ${config.steam.playTime} minutes. Please close this window and step through the instructions again`,
+        };
       return { success: true };
     } catch (error) {
       return { error };

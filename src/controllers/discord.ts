@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { OAuth2Routes, RouteBases, Routes } from 'discord.js'
 import { config } from '../config'
+import { DiscordProfile } from '../util/types'
 
 export const DiscordController = {
   getAccessToken: async (code: string) => {
@@ -45,7 +46,7 @@ export const DiscordController = {
     }
   },
 
-  getProfile: async (access_token: string) => {
+  getProfile: async (access_token: string): Promise<{ profile?: DiscordProfile; error?: string }> => {
     try {
       const { data } = await axios.get(
         `${RouteBases.api}${Routes.user('@me')}`, {
@@ -53,8 +54,8 @@ export const DiscordController = {
       });
   
       if (!data) return { error: 'Failed to fetch Discord profile.' };
-
-      const profile = {
+  
+      const profile: DiscordProfile = {
         id: data.id,
         username: data.username,
         global_name: data.global_name,
@@ -71,5 +72,5 @@ export const DiscordController = {
     } catch (error) {
       return { error: 'Failed to retrieve Discord profile.' };
     }
-  },
-}
+  }
+};

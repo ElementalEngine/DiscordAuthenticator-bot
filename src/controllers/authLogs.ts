@@ -1,17 +1,21 @@
 import { Client, EmbedBuilder, TextChannel } from 'discord.js';
 import client from '../discord';
 import { config } from '../config';
+import { DiscordProfile } from '../util/types'
 
 export const AuthLogs = {
-  logAuth: async (profile: any) => {
+  logAuth: async (profile: DiscordProfile) => {
     const discord = client as Client;
     const logChannel = discord.channels.cache.get(config.discord.channels.auth_log) as TextChannel;
 
-    if (!logChannel) return console.error('Auth log channel not found.');
+    if (!logChannel) {
+      console.error('Auth log channel not found.');
+      return;
+    }
 
     const embed = new EmbedBuilder()
       .setTitle('🔹 User Successfully Authenticated')
-      .setColor(0x5865F2) // Discord Blue
+      .setColor(0x5865F2)
       .setThumbnail(`https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png?size=256`)
       .addFields(
         { name: '👤 User', value: `<@${profile.id}> (${profile.username}#${profile.discriminator})`, inline: false },
@@ -28,14 +32,15 @@ export const AuthLogs = {
     await logChannel.send({ embeds: [embed] });
   },
 
-  // Logs only successful registrations in steam_log for searching
   logRegistration: async (discordUser: any, steamId: string) => {
     const discord = client as Client;
     const steamLogChannel = discord.channels.cache.get(config.discord.channels.steam_log) as TextChannel;
 
-    if (!steamLogChannel) return console.error('Steam log channel not found.');
+    if (!steamLogChannel) {
+      console.error('Steam log channel not found.');
+      return;
+    }
 
-    // Log Steam ID separately for easier searching
     await steamLogChannel.send(
       `✅ **New Registration**\n` +
       `**Steam ID:** ${steamId}\n` +

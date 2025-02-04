@@ -1,7 +1,7 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMemberRoleManager } from 'discord.js';
 import { SteamController } from '../controllers/steam';
 
-export const data = new SlashCommandBuilder()
+export const _data = new SlashCommandBuilder()
   .setName('checkfamilyshare')
   .setDescription('Check if a user is playing Civilization via Steam Family Sharing.')
   .addStringOption(option =>
@@ -11,7 +11,7 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
   );
 
-export const execute = async (interaction: ChatInputCommandInteraction) => {
+export const _execute = async (interaction: ChatInputCommandInteraction) => {
   try {
     const botCommandsChannel = process.env.CHANNEL_BOT_COMMANDS_ID!;
     if (interaction.channelId !== botCommandsChannel) {

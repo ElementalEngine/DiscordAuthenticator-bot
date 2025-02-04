@@ -20,8 +20,8 @@ const discord = {
   guildId: process.env.DISCORD_GUILD_ID ?? '',
   channels: {
     welcome: process.env.CHANNEL_WELCOME!,
-    rules: process.env.CHANNEL_RULES_ID!,
-    about_us: process.env.CHANNEL_ABOUT_US_ID!,
+    channel_list: process.env.CHANNEL_LIST!,
+    info_hub: process.env.CHANNEL_INFORMATION_HUB!,
     auth_log: process.env.CHANNEL_AUTHBOT_LOG_ID!,
     steam_log: process.env.CHANNEL_STEAM_ID!,
     commands: process.env.CHANNEL_COMMANDS_ID!,
@@ -41,7 +41,6 @@ const steam = {
   gameIdCiv6: 289070,
   playTime: 120,
   gameIdCiv7: 1295660,
-  playTimeCiv7: 120,
 }
 
 export const config = {

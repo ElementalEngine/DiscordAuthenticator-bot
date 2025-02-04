@@ -25,11 +25,11 @@ export const AuthController = {
       return res.json({ error: 'No game provided' });
     }
 
-    // 🔹 Get Discord access token
+    // Get Discord access token
     const { access_token, error } = await DiscordController.getAccessToken(req.query.code);
     if (error) return res.json({ error });
 
-    // 🔹 Get Discord profile
+    // Get Discord profile
     const { profile, error: profileError } = await DiscordController.getProfile(access_token);
     if (profileError) return res.json({ error: profileError });
 
@@ -40,16 +40,20 @@ export const AuthController = {
     }
     req.discord = profile;
 
-    // 🔹 Check if user is already registered
+    // Check if user is already registered
     const existingPlayer = await Player.findOne({
       $or: [{ discord_id: profile.id }, { steam_id: profile.id }],
     });
 
     if (existingPlayer) {
-      return res.json({ error: 'You are already registered!' });
+      return res.json({
+        error: 'You are already registered!',
+        discord_id: existingPlayer.discord_id,
+        steam_id: existingPlayer.steam_id || 'No Steam ID linked',
+      });
     }
 
-    // 🔹 Get Discord connections (to verify Steam link)
+    // Get Discord connections (to verify Steam link)
     const { connections, error: connectionsError } = await DiscordController.getConnections(access_token);
     if (connectionsError) return res.json({ error: connectionsError });
 
@@ -60,7 +64,7 @@ export const AuthController = {
       });
     }
 
-    // 🔹 Validate Steam account
+    // Validate Steam account
     const { error: steamError } = await SteamController.validate(steam.id, game);
     if (steamError) return res.json({ error: steamError });
 
@@ -76,7 +80,7 @@ export const AuthController = {
 
     if (!member) return res.json({ error: 'Could not find member' });
 
-    // 🔹 Assign Civ6 or Civ7 rank role
+    // Assign Civ6 or Civ7 rank role
     const roleId = gameLower === 'civ6' ? config.discord.roles.Civ6Rank : config.discord.roles.Civ7Rank;
     const role = guild?.roles.cache.get(roleId);
     const nonVerifiedRole = guild?.roles.cache.get(process.env.ROLE_NON_VERIFIED!);
@@ -88,7 +92,7 @@ export const AuthController = {
       console.error('Role not found!');
     }
 
-    // 🔹 Remove non-verified role if registration is complete
+    // Remove non-verified role if registration is complete
     if (nonVerifiedRole) {
       console.log(`Removing non-verified role from ${req.discord.username}`);
       await member.roles.remove(nonVerifiedRole).catch(console.error);
@@ -96,11 +100,11 @@ export const AuthController = {
       console.error('Non-verified role not found!');
     }
 
-    // 🔹 Log successful registration
+    // Log successful registration
     await AuthLogs.logRegistration(req.discord, req.steamid);
     await AuthLogs.logAuth(req.discord); // 🔹 Moved here (only logs successful registrations)
 
-    // 🔹 Save to database
+    // Save to database
     const newPlayer = {
       discord_id: req.discord.id,
       steam_id: req.steamid,

@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMember } from 'discord.js';
 import { config } from '../config';
 import { SteamController } from '../controllers/steam';
 import { Player } from '../database/players'; // Assuming you have a Player model
@@ -29,7 +29,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     if (!user) {
       return interaction.reply({
         content: '❌ We could not find your Steam ID in our records. Please link your Steam account first.',
-        flags: 64, 
+        ephemeral: true, 
       });
     }
 
@@ -38,17 +38,17 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     if (!steamId) {
       return interaction.reply({
         content: '❌ You have not linked a Steam ID to your account. Please link your Steam account first.',
-        flags: 64, 
+        ephemeral: true, 
       });
     }
 
     const selectedRoleId = config.discord.roles[`${selected}Rank`];
     const opposite: SelectedGame = selected === 'Civ6' ? 'Civ7' : 'Civ6';
-    const member = interaction.guild?.members.cache.get(interaction.user.id);
+    const member = interaction.guild?.members.cache.get(interaction.user.id) as GuildMember;
     if (!member) {
       return interaction.reply({
         content: '❌ Error retrieving user data.',
-        flags: 64, 
+        ephemeral: true, 
       });
     }
 
@@ -59,7 +59,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     if (!hasCiv6Role && !hasCiv7Role) {
       return interaction.reply({
         content: '❌ You do not have a ranked role. Only users with **Civ6Rank** or **Civ7Rank** can use this command.',
-        flags: 64, 
+        ephemeral: true, 
       });
     }
 
@@ -67,7 +67,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     if (member.roles.cache.has(selectedRoleId)) {
       return interaction.reply({
         content: `❌ You already have the **${selected}** ranked role.`,
-        flags: 64, 
+        ephemeral: true, 
       });
     }
 
@@ -76,7 +76,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     if (response?.error) {
       return interaction.reply({
         content: response.error,
-        flags: 64, 
+        ephemeral: true, 
       });
     }
 
@@ -84,14 +84,14 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     await member.roles.add(selectedRoleId);
     await interaction.reply({
       content: `✅ Role added successfully! You now have both **${selected}** and **${opposite}** ranked roles.`,
-      flags: 64, 
+      ephemeral: true, 
     });
 
   } catch (error) {
     console.error('Error executing /addrankedrole:', error);
     await interaction.reply({
       content: '❌ An unexpected error occurred. Please try again later.',
-      flags: 64, 
+      ephemeral: true, 
     });
   }
 };

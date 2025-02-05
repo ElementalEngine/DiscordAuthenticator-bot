@@ -47,38 +47,29 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
 
   if (!hasNonVerifiedRole) {
     return await interaction.reply({
-      content: '❌ You do not have the required role to use this command. Only non-verified users can run this.',
+      content: '❌ You do not have the required role to use this command. Only Unverified users can run this.',
       ephemeral: true,
     });
   }
 
-  // Check if the user is already registered (by Discord ID)
+  // Check if the user is already registered by Discord ID
   const existingPlayer = await Player.findOne({ discord_id: interaction.user.id });
   if (existingPlayer) {
     return await interaction.reply({
-      content: `❌ You are already registered.\n\n**Discord ID:** \`${existingPlayer.discord_id}\`\n**Steam ID:** \`${existingPlayer.steam_id || 'No Steam ID linked'}\`\n\nPlease provide this information to a moderator if needed.`,
+      content: `❌ You are already registered.\n\n**Discord ID:** \`${existingPlayer.discord_id}\`\n**Steam ID:** \`${existingPlayer.steam_id || 'No Steam ID linked'}\`\n\nIf this is incorrect, please contact a moderator.`,
       ephemeral: true,
     });
   }
 
-  // Check if the Steam ID is already registered under another Discord account
-  const linkedSteam = await Player.findOne({ steam_id: interaction.user.id });
-  if (linkedSteam && linkedSteam.discord_id !== interaction.user.id) {
-    return await interaction.reply({
-      content: `⚠️ This Steam account is already linked to another Discord user.\n\n**Registered Discord ID:** \`${linkedSteam.discord_id}\`\n\nIf this is a mistake, please contact a moderator.`,
-      ephemeral: true,
-    });
-  }
-
-  // If the user selects 'Epic', 'Xbox', or 'PSN', they can **only** select Civilization VII
+  //  Restrict Epic, Xbox, and PSN users to Civ7 only
   if ((type === 'epic' || type === 'xbox' || type === 'psn') && game !== 'Civ7') {
     return await interaction.reply({
-      content: `❌ ${type.toUpperCase()} accounts can only register for Civilization VII.`,
+      content: `❌ ${type.toUpperCase()} accounts can **only** register for Civilization VII.`,
       ephemeral: true,
     });
   }
 
-  // If the user selects 'Epic', 'Xbox', or 'PSN', reject them
+  // Reject Epic, Xbox, and PSN accounts entirely
   if (type === 'epic' || type === 'xbox' || type === 'psn') {
     return await interaction.reply({
       content: `⚠️ Registration for ${type.toUpperCase()} accounts is not available yet. Please contact a moderator for assistance.`,
@@ -92,4 +83,4 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     content: `✅ The CPL Bot needs authorization to verify your linked Steam account.\n\n[Click here to authorize](${config.oauth}${state})`,
     ephemeral: true,
   });
-};
+}

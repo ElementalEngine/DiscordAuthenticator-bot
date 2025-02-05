@@ -75,48 +75,62 @@ export const AuthController = {
   registerUser: async (req: any, res: Response) => {
     const [gameLower] = decodeURI(req.query.state).split('|');
     const discord = client as Client;
-    const guild = discord.guilds.cache.first();
-    const member = await guild?.members.fetch(req.discord.id);
+    const guild = discord.guilds.cache.get(config.discord.guildId);
+    if (!guild) return res.json({ error: 'Guild not found!' });
 
-    if (!member) return res.json({ error: 'Could not find member' });
+    try {
+        const member = await guild.members.fetch(req.discord.id);
+        if (!member) return res.json({ error: 'Could not find member' });
+        await guild.roles.fetch();
 
-    // Assign Civ6 or Civ7 rank role
-    const roleId = gameLower === 'civ6' ? config.discord.roles.Civ6Rank : config.discord.roles.Civ7Rank;
-    const role = guild?.roles.cache.get(roleId);
-    const nonVerifiedRole = guild?.roles.cache.get(process.env.ROLE_NON_VERIFIED!);
+        console.log(`🔹 Checking Roles in Guild: ${guild.name}`);
+        console.log(guild.roles.cache.map(role => ({ id: role.id, name: role.name })));
 
-    if (role) {
-      console.log(`Assigning role ${role.id} to ${req.discord.username}`);
-      await member.roles.add(role).catch(console.error);
-    } else {
-      console.error('Role not found!');
+        // Get the correct role
+        const roleId = gameLower === 'civ6' ? config.discord.roles.Civ6Rank : config.discord.roles.Civ7Rank;
+        const role = guild.roles.cache.get(roleId);
+        const nonVerifiedRole = guild.roles.cache.get(config.discord.roles.non_verified);
+
+        if (!role) {
+            console.error(`❌ Role not found! Check ID: ${roleId}`);
+            return res.json({ error: `Game role not found. Contact an admin.` });
+        }
+
+        if (!nonVerifiedRole) {
+            console.warn(`⚠️ Non-verified role not found. ID: ${config.discord.roles.non_verified}`);
+        }
+
+        console.log(`✅ Assigning role ${role.name} to ${req.discord.username}`);
+        await member.roles.add(role);
+        if (nonVerifiedRole && member.roles.cache.has(nonVerifiedRole.id)) {
+            console.log(`✅ Removing non-verified role from ${req.discord.username}`);
+            await member.roles.remove(nonVerifiedRole);
+        }
+
+        // Log successful registration
+        await AuthLogs.logRegistration(req.discord, req.steamid);
+        await AuthLogs.logAuth(req.discord);
+
+        // Save to database
+        const newPlayer = {
+            discord_id: req.discord.id,
+            steam_id: req.steamid,
+            display_name: req.discord.global_name,
+            user_name: req.discord.username,
+        };
+
+        await Player.create(newPlayer)
+            .then(() => {
+                console.log(`✅ User ${req.discord.username} registered successfully!`);
+                res.json({ success: 'Registered' });
+            })
+            .catch((error) => {
+                console.error('❌ Error creating player:', error);
+                res.json({ error: 'Error creating player' });
+            });
+    } catch (error) {
+        console.error('❌ Error registering user:', error);
+        return res.json({ error: 'An error occurred while registering the user' });
     }
-
-    // Remove non-verified role if registration is complete
-    if (nonVerifiedRole) {
-      console.log(`Removing non-verified role from ${req.discord.username}`);
-      await member.roles.remove(nonVerifiedRole).catch(console.error);
-    } else {
-      console.error('Non-verified role not found!');
-    }
-
-    // Log successful registration
-    await AuthLogs.logRegistration(req.discord, req.steamid);
-    await AuthLogs.logAuth(req.discord); // 🔹 Moved here (only logs successful registrations)
-
-    // Save to database
-    const newPlayer = {
-      discord_id: req.discord.id,
-      steam_id: req.steamid,
-      display_name: req.discord.global_name,
-      user_name: req.discord.username,
-    };
-
-    await Player.create(newPlayer)
-      .then(() => res.json({ success: 'Registered' }))
-      .catch((error) => {
-        console.error('Error creating player', error);
-        res.json({ error: 'Error creating player' });
-      });
   },
 };

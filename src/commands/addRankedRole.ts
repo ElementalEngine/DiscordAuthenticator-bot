@@ -36,7 +36,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     const user = await Player.findOne({ discord_id: discordId });
     if (!user) {
       return interaction.reply({
-        content: '❌ We could not find your Steam ID in our records. Please link your Steam account first.',
+        content: '❌ We could not find your Discord ID in our records.',
         ephemeral: true,
       });
     }

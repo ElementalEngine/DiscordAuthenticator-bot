@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMember } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMember, PermissionFlagsBits } from 'discord.js';
 import { config } from '../config';
 import { SteamController } from '../controllers/steam';
 import { Player } from '../database/players';
@@ -21,85 +21,80 @@ type SelectedGame = 'Civ6' | 'Civ7';
 
 export const execute = async (interaction: ChatInputCommandInteraction) => {
   try {
-    const allowedChannelId = process.env.CHANNEL_COMMANDS_ID!;
+    await interaction.deferReply({ ephemeral: true });
+
+    // Ensure the environment variable is set
+    const allowedChannelId = process.env.CHANNEL_COMMANDS_ID;
+    if (!allowedChannelId) {
+      console.error('❌ Missing CHANNEL_COMMANDS_ID in environment variables.');
+      return interaction.editReply({ content: '❌ Internal configuration error. Please contact an admin.' });
+    }
+
+    // Restrict command usage to a specific channel
     if (interaction.channelId !== allowedChannelId) {
-      return interaction.reply({
-        content: `❌ This command can only be used in the <#${allowedChannelId}> channel.`,
-        ephemeral: true, 
+      return interaction.editReply({
+        content: `❌ This command can only be used in <#${allowedChannelId}>.`,
       });
     }
 
     const selected: SelectedGame = interaction.options.getString('game', true) as SelectedGame;
     const discordId = interaction.user.id;
 
-    // Look up the user in the database by discordId
+    // Retrieve user from database
     const user = await Player.findOne({ discord_id: discordId });
     if (!user) {
-      return interaction.reply({
-        content: '❌ We could not find your Discord ID in our records.',
-        ephemeral: true,
-      });
+      return interaction.editReply({ content: '❌ Your Discord ID was not found in our records.' });
     }
 
-    // Get steamId from the database
+    // Ensure Steam ID is linked
     const steamId = user.steam_id;
     if (!steamId) {
-      return interaction.reply({
-        content: '❌ You have not linked a Steam ID to your account. Please link your Steam account first.',
-        ephemeral: true,
-      });
+      return interaction.editReply({ content: '❌ You have not linked a Steam ID. Please do so first.' });
     }
 
+    if (!interaction.guild?.members.me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      return interaction.editReply({ content: '❌ I am missing the "Manage Roles" permission to assign your role.' });
+    }
+
+    // Determine roles
     const selectedRoleId = config.discord.roles[`${selected}Rank`];
     const opposite: SelectedGame = selected === 'Civ6' ? 'Civ7' : 'Civ6';
+
+    // Fetch the member object
     const member = interaction.guild?.members.cache.get(interaction.user.id) as GuildMember;
     if (!member) {
-      return interaction.reply({
-        content: '❌ Error retrieving user data.',
-        ephemeral: true,
-      });
+      return interaction.editReply({ content: '❌ Error retrieving user data.' });
     }
 
-    // Check if user has NO ranked role at all (they shouldn't be able to use this command)
+    // Ensure user has at least one ranked role
     const hasCiv6Role = member.roles.cache.has(config.discord.roles.Civ6Rank);
     const hasCiv7Role = member.roles.cache.has(config.discord.roles.Civ7Rank);
-
     if (!hasCiv6Role && !hasCiv7Role) {
-      return interaction.reply({
-        content: '❌ You do not have a ranked role. Only users with **Civ6Rank** or **Civ7Rank** can use this command.',
-        ephemeral: true,
-      });
+      return interaction.editReply({ content: '❌ You do not have a ranked role. Only Civ6Rank or Civ7Rank users can use this command.' });
     }
 
-    // Check if user already has the selected role (can't add it again)
+    // Ensure user doesn't already have the selected role
     if (member.roles.cache.has(selectedRoleId)) {
-      return interaction.reply({
-        content: `❌ You already have the **${selected}** ranked role.`,
-        ephemeral: true,
-      });
+      return interaction.editReply({ content: `❌ You already have the **${selected}** ranked role.` });
     }
 
-    // Validate ownership via Steam API
+    // Verify Steam game ownership
     const response = await SteamController.checkGamesAddRole(steamId, selected);
     if (response?.error) {
-      return interaction.reply({
-        content: response.error,
-        ephemeral: true,
-      });
+      return interaction.editReply({ content: response.error });
     }
 
-    // Add the selected role
+    // Assign the role
     await member.roles.add(selectedRoleId);
-    await interaction.reply({
-      content: `✅ Role added successfully! You now have both **${selected}** and **${opposite}** ranked roles.`,
-      ephemeral: true,
-    });
+    return interaction.editReply({ content: `✅ Role added successfully! You now have both **${selected}** and **${opposite}** ranked roles.` });
 
   } catch (error) {
     console.error('Error executing /addrankedrole:', error);
-    await interaction.reply({
-      content: '❌ An unexpected error occurred. Please try again later.',
-      ephemeral: true,
-    });
+
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ An unexpected error occurred. Please try again later.', ephemeral: true });
+    } else {
+      await interaction.editReply({ content: '❌ An unexpected error occurred. Please try again later.' });
+    }
   }
 };

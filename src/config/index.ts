@@ -21,6 +21,7 @@ const discord = {
   channels: {
     welcome: process.env.CHANNEL_WELCOME!,
     channel_list: process.env.CHANNEL_LIST!,
+    faq: process.env.CHANNEL_FAQ!, 
     info_hub: process.env.CHANNEL_INFORMATION_HUB!,
     auth_log: process.env.CHANNEL_AUTHBOT_LOG_ID!,
     steam_log: process.env.CHANNEL_STEAM_ID!,

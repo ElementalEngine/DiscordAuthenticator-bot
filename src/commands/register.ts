@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMemberRoleManager } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMember } from 'discord.js';
 import { config } from '../config';
 import { Player } from '../database/players';
 
@@ -29,58 +29,60 @@ export const data = new SlashCommandBuilder()
   );
 
 export const execute = async (interaction: ChatInputCommandInteraction) => {
-  const type = interaction.options.getString('account_type') || 'steam';
-  const game = interaction.options.getString('game') || 'Civ6';
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  // Ensure the command is used in the correct channel
-  if (interaction.channelId !== process.env.CHANNEL_WELCOME) {
-    return await interaction.reply({
-      content: `This command can only be used in <#${process.env.CHANNEL_WELCOME}>`,
-      ephemeral: true,
+    const type = interaction.options.getString('account_type', true);
+    const game = interaction.options.getString('game', true);
+    const userId = interaction.user.id;
+
+    // Check if user is in the correct channel
+    const welcomeChannelId = process.env.CHANNEL_WELCOME;
+    if (interaction.channelId !== welcomeChannelId) {
+      return interaction.editReply({ content: `❌ This command can only be used in <#${welcomeChannelId}>.` });
+    }
+
+    // Ensure the user has the "non-verified" role
+    const member = interaction.member as GuildMember;
+    const nonVerifiedRoleId = process.env.ROLE_NON_VERIFIED!;
+    if (!member.roles.cache.has(nonVerifiedRoleId)) {
+      return interaction.editReply({
+        content: '❌ You do not have the required role to use this command. Only unverified users can register.',
+      });
+    }
+
+    // Check if user is already registered
+    const existingPlayer = await Player.findOne({ discord_id: userId });
+    if (existingPlayer) {
+      return interaction.editReply({
+        content: `❌ You are already registered.\n\n**Discord ID:** \`${existingPlayer.discord_id}\`\n**Steam ID:** \`${existingPlayer.steam_id || 'Not linked'}\`\n\nIf this is incorrect, please contact a moderator.`,
+      });
+    }
+
+    // Restrict Epic, Xbox, and PSN users to Civ7 only
+    if ((type !== 'steam') && game !== 'Civ7') {
+      return interaction.editReply({
+        content: `❌ ${type.toUpperCase()} accounts can **only** register for Civilization VII.`,
+      });
+    }
+
+    // Reject Epic, Xbox, and PSN accounts for now
+    if (type !== 'steam') {
+      return interaction.editReply({
+        content: `⚠️ Registration for **${type.toUpperCase()}** accounts is not available yet. Please contact a moderator for assistance.`,
+      });
+    }
+
+    // Generate Steam OAuth link
+    const state = encodeURIComponent(`${game.toLowerCase()}|${userId}`);
+    const authUrl = `${config.oauth}${state}`;
+
+    return interaction.editReply({
+      content: `✅ To complete your registration, please authorize your Steam account:\n\n[Click here to authorize](${authUrl})`,
     });
+
+  } catch (error) {
+    console.error('Error executing /register:', error);
+    return interaction.editReply({ content: '❌ An unexpected error occurred. Please try again later.' });
   }
-
-  // Check if the user has the 'Non-Verified' role
-  const hasNonVerifiedRole = interaction.member 
-    && interaction.member.roles instanceof GuildMemberRoleManager 
-    && interaction.member.roles.cache.has(process.env.ROLE_NON_VERIFIED!);
-
-  if (!hasNonVerifiedRole) {
-    return await interaction.reply({
-      content: '❌ You do not have the required role to use this command. Only Unverified users can run this.',
-      ephemeral: true,
-    });
-  }
-
-  // Check if the user is already registered by Discord ID
-  const existingPlayer = await Player.findOne({ discord_id: interaction.user.id });
-  if (existingPlayer) {
-    return await interaction.reply({
-      content: `❌ You are already registered.\n\n**Discord ID:** \`${existingPlayer.discord_id}\`\n**Steam ID:** \`${existingPlayer.steam_id || 'No Steam ID linked'}\`\n\nIf this is incorrect, please contact a moderator.`,
-      ephemeral: true,
-    });
-  }
-
-  //  Restrict Epic, Xbox, and PSN users to Civ7 only
-  if ((type === 'epic' || type === 'xbox' || type === 'psn') && game !== 'Civ7') {
-    return await interaction.reply({
-      content: `❌ ${type.toUpperCase()} accounts can **only** register for Civilization VII.`,
-      ephemeral: true,
-    });
-  }
-
-  // Reject Epic, Xbox, and PSN accounts entirely
-  if (type === 'epic' || type === 'xbox' || type === 'psn') {
-    return await interaction.reply({
-      content: `⚠️ Registration for ${type.toUpperCase()} accounts is not available yet. Please contact a moderator for assistance.`,
-      ephemeral: true,
-    });
-  }
-
-  // Generate OAuth link (only for Steam users)
-  const state = encodeURIComponent(`${game.toLowerCase()}|${interaction.user.id}|${type}`);
-  return await interaction.reply({
-    content: `✅ The CPL Bot needs authorization to verify your linked Steam account.\n\n[Click here to authorize](${config.oauth}${state})`,
-    ephemeral: true,
-  });
-}
+};

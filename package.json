@@ -17,8 +17,8 @@
     "@types/node": "^22.13.1",
     "@types/steamapi": "^2.2.5",
     "nodemon": "^3.1.9",
-    "tsup": "^8.3.6",
-    "tsx": "^4.19.2",
+    "tsup": "^2.0.3",
+    "tsx": "^3.12.10",
     "typescript": "^5.7.3"
   },
   "dependencies": {
@@ -31,5 +31,9 @@
     "mongoose": "^8.10.0",
     "steamapi": "^3.0.12",
     "ts-node": "^10.9.2"
+  },
+  "overrides": {
+    "undici": "^5.22.0",
+    "esbuild": "^0.25.0"
   }
 }

@@ -1,12 +1,13 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMember, PermissionFlagsBits } from 'discord.js';
+import {ChatInputCommandInteraction, SlashCommandBuilder, GuildMember, PermissionFlagsBits 
+} from 'discord.js';
 import { config } from '../config';
 import { SteamController } from '../controllers/steam';
-import { Player } from '../database/players';
+import { findPlayerByDiscordId } from '../database/queries';
 
 export const data = new SlashCommandBuilder()
   .setName('addrankedrole')
   .setDescription('Add Civ6 or Civ7 ranked role if you own the game on Steam.')
-  .addStringOption((option) =>
+  .addStringOption(option =>
     option
       .setName('game')
       .setDescription('Select the Civilization game you are choosing to add.')
@@ -20,81 +21,73 @@ export const data = new SlashCommandBuilder()
 type SelectedGame = 'Civ6' | 'Civ7';
 
 export const execute = async (interaction: ChatInputCommandInteraction) => {
+  await interaction.deferReply({ ephemeral: true });
+  
   try {
-    await interaction.deferReply({ ephemeral: true });
-
-    // Ensure the environment variable is set
-    const allowedChannelId = process.env.CHANNEL_COMMANDS_ID;
-    if (!allowedChannelId) {
-      console.error('❌ Missing CHANNEL_COMMANDS_ID in environment variables.');
+    // Validate allowed channels
+    const civ6Channel = process.env.CHANNEL_COMMANDS_CIV6_ID;
+    const civ7Channel = process.env.CHANNEL_COMMANDS_CIV7_ID;
+    if (!civ6Channel || !civ7Channel) {
+      console.error('❌ Missing required channel environment variables.');
       return interaction.editReply({ content: '❌ Internal configuration error. Please contact an admin.' });
     }
-
-    // Restrict command usage to a specific channel
-    if (interaction.channelId !== allowedChannelId) {
+    if (![civ6Channel, civ7Channel].includes(interaction.channelId)) {
       return interaction.editReply({
-        content: `❌ This command can only be used in <#${allowedChannelId}>.`,
+        content: '❌ This command can only be used in the designated Civ6 or Civ7 command channels.'
       });
     }
-
-    const selected: SelectedGame = interaction.options.getString('game', true) as SelectedGame;
+    
+    // Retrieve command options and user info
+    const selected = interaction.options.getString('game', true) as SelectedGame;
     const discordId = interaction.user.id;
-
-    // Retrieve user from database
-    const user = await Player.findOne({ discord_id: discordId });
+    
+    // Get user from DB using centralized query
+    const user = await findPlayerByDiscordId(discordId);
     if (!user) {
       return interaction.editReply({ content: '❌ Your Discord ID was not found in our records.' });
     }
-
-    // Ensure Steam ID is linked
-    const steamId = user.steam_id;
-    if (!steamId) {
-      return interaction.editReply({ content: '❌ You have not linked a Steam ID. Please do so first.' });
+    
+    // Ensure a Steam ID is linked
+    if (!user.steam_id) {
+      return interaction.editReply({ content: '❌ You have not linked a Steam ID. Please link your Steam account first.' });
     }
-
+    
+    // Ensure the bot has permission to manage roles
     if (!interaction.guild?.members.me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
       return interaction.editReply({ content: '❌ I am missing the "Manage Roles" permission to assign your role.' });
     }
-
-    // Determine roles
-    const selectedRoleId = config.discord.roles[`${selected}Rank`];
-    const opposite: SelectedGame = selected === 'Civ6' ? 'Civ7' : 'Civ6';
-
-    // Fetch the member object
-    const member = interaction.guild?.members.cache.get(interaction.user.id) as GuildMember;
+    
+    // Retrieve the Discord member
+    const member = interaction.guild?.members.cache.get(discordId) as GuildMember;
     if (!member) {
-      return interaction.editReply({ content: '❌ Error retrieving user data.' });
+      return interaction.editReply({ content: '❌ Error retrieving your member data.' });
     }
-
-    // Ensure user has at least one ranked role
-    const hasCiv6Role = member.roles.cache.has(config.discord.roles.Civ6Rank);
-    const hasCiv7Role = member.roles.cache.has(config.discord.roles.Civ7Rank);
-    if (!hasCiv6Role && !hasCiv7Role) {
-      return interaction.editReply({ content: '❌ You do not have a ranked role. Only Civ6Rank or Civ7Rank users can use this command.' });
+    
+    // Check if the member already has any ranked role
+    const rankedRoles = [config.discord.roles.Civ6Rank, config.discord.roles.Civ7Rank];
+    const hasRankedRole = rankedRoles.some(roleId => member.roles.cache.has(roleId));
+    if (!hasRankedRole) {
+      return interaction.editReply({ content: '❌ You do not have a ranked role. Only users with a ranked role can use this command.' });
     }
-
-    // Ensure user doesn't already have the selected role
+    
+    // Determine the role to add and ensure it isn’t already assigned
+    const selectedRoleId = config.discord.roles[`${selected}Rank`];
     if (member.roles.cache.has(selectedRoleId)) {
       return interaction.editReply({ content: `❌ You already have the **${selected}** ranked role.` });
     }
-
+    
     // Verify Steam game ownership
-    const response = await SteamController.checkGamesAddRole(steamId, selected);
-    if (response?.error) {
-      return interaction.editReply({ content: response.error });
+    const steamCheck = await SteamController.checkGamesAddRole(user.steam_id, selected);
+    if (steamCheck?.error) {
+      return interaction.editReply({ content: steamCheck.error });
     }
-
+    
     // Assign the role
     await member.roles.add(selectedRoleId);
-    return interaction.editReply({ content: `✅ Role added successfully! You now have both **${selected}** and **${opposite}** ranked roles.` });
-
+    return interaction.editReply({ content: `✅ Role added successfully! You now have the **${selected}** ranked role.` });
+    
   } catch (error) {
     console.error('Error executing /addrankedrole:', error);
-
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: '❌ An unexpected error occurred. Please try again later.', ephemeral: true });
-    } else {
-      await interaction.editReply({ content: '❌ An unexpected error occurred. Please try again later.' });
-    }
+    return interaction.editReply({ content: '❌ An unexpected error occurred. Please try again later.' });
   }
 };

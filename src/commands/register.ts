@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMember } from 'discord.js';
 import { config } from '../config';
-import { Player } from '../database/players';
+import { findPlayerByDiscordId } from '../database/queries';
 
 export const data = new SlashCommandBuilder()
   .setName('register')
@@ -37,7 +37,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     const userId = interaction.user.id;
 
     // Check if user is in the correct channel
-    const welcomeChannelId = process.env.CHANNEL_WELCOME;
+    const welcomeChannelId = process.env.CHANNEL_WELCOME_ID;
     if (interaction.channelId !== welcomeChannelId) {
       return interaction.editReply({ content: `❌ This command can only be used in <#${welcomeChannelId}>.` });
     }
@@ -51,36 +51,33 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
       });
     }
 
-    // Check if user is already registered
-    const existingPlayer = await Player.findOne({ discord_id: userId });
+    // Check if user is already registered using the queries helper
+    const existingPlayer = await findPlayerByDiscordId(userId);
     if (existingPlayer) {
       return interaction.editReply({
         content: `❌ You are already registered.\n\n**Discord ID:** \`${existingPlayer.discord_id}\`\n**Steam ID:** \`${existingPlayer.steam_id || 'Not linked'}\`\n\nIf this is incorrect, please contact a moderator.`,
       });
     }
 
-    // Restrict Epic, Xbox, and PSN users to Civ7 only
+    // Restrict Epic, Xbox, and PSN accounts to Civ7 only, and for now, only steam accounts are accepted
     if ((type !== 'steam') && game !== 'Civ7') {
       return interaction.editReply({
         content: `❌ ${type.toUpperCase()} accounts can **only** register for Civilization VII.`,
       });
     }
-
-    // Reject Epic, Xbox, and PSN accounts for now
     if (type !== 'steam') {
       return interaction.editReply({
         content: `⚠️ Registration for **${type.toUpperCase()}** accounts is not available yet. Please contact a moderator for assistance.`,
       });
     }
 
-    // Generate Steam OAuth link
-    const state = encodeURIComponent(`${game.toLowerCase()}|${userId}`);
+    // FIX: Create state with three parts: accountType|gameLower|userId
+    const state = encodeURIComponent(`${type}|${game.toLowerCase()}|${userId}`);
     const authUrl = `${config.oauth}${state}`;
 
     return interaction.editReply({
       content: `✅ To complete your registration, please authorize your Steam account:\n\n[Click here to authorize](${authUrl})`,
     });
-
   } catch (error) {
     console.error('Error executing /register:', error);
     return interaction.editReply({ content: '❌ An unexpected error occurred. Please try again later.' });

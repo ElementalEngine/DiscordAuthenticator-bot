@@ -4,101 +4,180 @@ import { config } from '../config';
 import client from '../discord';
 import { DiscordController } from './discord';
 import { SteamController } from './steam';
-import { Player } from '../database/players';
+import { findPlayerByDiscordId, findPlayerBySteamId, createPlayer } from '../database/queries';
 import { AuthLogs } from './authLogs';
 
 export const AuthController = {
+  // Authenticate user using Discord OAuth and linked Steam account.
   authenticate: async (req: any, res: Response, next: NextFunction) => {
-    const { code, state } = req.query;
-    if (!code) return res.json({ error: 'No code provided' });
-    if (!state) return res.json({ error: 'Invalid link. Please request a new one using /register' });
+    try {
+      const { code, state } = req.query;
+      if (!code) return res.status(400).json({ error: 'No authorization code provided.' });
+      if (!state) {
+        return res.status(400).json({ error: 'Invalid authentication link. Please request a new one using /register.' });
+      }
 
-    const [gameLower, userId] = decodeURI(state).split('|');
-    const game = config.steam[gameLower === 'civ6' ? 'gameIdCiv6' : 'gameIdCiv7'];
-    if (!gameLower) return res.json({ error: 'No game provided' });
+      // Decode and split the state. Expected format: "accountType|gameLower|discordUserId"
+      const decodedState = decodeURIComponent(state as string);
+      const parts = decodedState.split('|');
+      if (parts.length < 3) {
+        return res.status(400).json({ error: 'Invalid authentication state format.' });
+      }
 
-    const { access_token, error } = await DiscordController.getAccessToken(code);
-    if (error) return res.json({ error });
+      const [accountType, gameLower, userId] = parts;
+      // Ensure the game is one of the supported ones.
+      const formattedGame = gameLower.charAt(0).toUpperCase() + gameLower.slice(1).toLowerCase();
+      if (formattedGame !== 'Civ6' && formattedGame !== 'Civ7') {
+        return res.status(400).json({ error: 'Invalid game provided.' });
+      }
 
-    const { profile, error: profileError } = await DiscordController.getProfile(access_token);
-    if (profileError || !profile || profile.id !== userId) {
-      return res.json({ error: 'Mismatch in Discord accounts. Log out and try again.' });
+      // Retrieve game settings from config.
+      const steamConfig = config.steam;
+      const gameId = Number(steamConfig[`gameId${formattedGame}`]);
+      const requiredPlayTime = Number(steamConfig[`playTime${formattedGame}`]);
+      if (!gameId || !requiredPlayTime) {
+        return res.status(400).json({ error: 'Invalid game configuration.' });
+      }
+      console.log(`[INFO] Authenticating Discord user ${userId} for ${formattedGame} (AppID: ${gameId}, Required Playtime: ${requiredPlayTime} minutes)`);
+
+      // Exchange the code for an access token.
+      const { access_token, error: tokenError } = await DiscordController.getAccessToken(code);
+      if (tokenError) {
+        return res.status(401).json({ error: 'Failed to obtain Discord access token.' });
+      }
+      // Fetch the Discord profile.
+      const { profile, error: profileError } = await DiscordController.getProfile(access_token!);
+      if (profileError || !profile || profile.id !== userId) {
+        return res.status(403).json({ error: 'Discord account mismatch. Log out and try again.' });
+      }
+      req.discord = profile;
+
+      // Check if user is already registered.
+      const existingPlayer =
+        (await findPlayerByDiscordId(profile.id)) || (await findPlayerBySteamId(profile.id));
+      if (existingPlayer) {
+        return res.status(409).json({
+          error: 'You are already registered!',
+          discord_id: existingPlayer.discord_id,
+          steam_id: existingPlayer.steam_id || 'No Steam ID linked',
+        });
+      }
+
+      // Fetch connected accounts from Discord.
+      const { connections, error: connectionsError } = await DiscordController.getConnections(access_token!);
+      if (connectionsError) {
+        return res.status(500).json({ error: 'Failed to fetch Discord connections.' });
+      }
+
+      // Only support "steam" account type for now.
+      if (accountType === 'steam') {
+        const steamConnection = connections.find((c: any) => c.type === 'steam');
+        if (!steamConnection) {
+          return res.status(400).json({
+            error: 'Your Steam account is not linked to Discord. Please follow the instructions again.',
+          });
+        }
+        // Validate Steam ownership and playtime.
+        const steamValidationError = await SteamController.validate(steamConnection.id, formattedGame as 'Civ6' | 'Civ7');
+        if (steamValidationError) {
+          return res.status(403).json({ error: steamValidationError });
+        }
+        req.steamid = steamConnection.id;
+      } else {
+        return res.status(400).json({ error: 'Invalid account type provided.' });
+      }
+
+      next();
+    } catch (error) {
+      console.error('Authentication error:', error);
+      return res.status(500).json({ error: 'Internal server error during authentication.' });
     }
-
-    req.discord = profile;
-
-    const existingPlayer = await Player.findOne({ 
-      $or: [{ discord_id: profile.id }, { steam_id: profile.id }] 
-    });
-
-    if (existingPlayer) {
-      return res.json({ 
-        error: 'You are already registered!',
-        discord_id: existingPlayer.discord_id,
-        steam_id: existingPlayer.steam_id || 'No Steam ID linked',
-      });
-    }
-
-    const { connections, error: connectionsError } = await DiscordController.getConnections(access_token);
-    if (connectionsError) return res.json({ error: connectionsError });
-
-    const steam = connections.find(({ type }: any) => type === 'steam');
-    if (!steam) return res.json({ error: 'Your Steam account is not linked to Discord. Please follow the instructions again.' });
-
-    const { error: steamError } = await SteamController.validate(steam.id, game);
-    if (steamError) return res.json({ error: steamError });
-
-    req.steamid = steam.id;
-    next();
   },
 
+  // Register the user: assign roles, log events, create DB record, and send DM confirmation.
   registerUser: async (req: any, res: Response) => {
-    const [gameLower] = decodeURI(req.query.state).split('|');
-    const discord = client as Client;
-    const guild = discord.guilds.cache.get(config.discord.guildId);
-    if (!guild) return res.json({ error: 'Guild not found!' });
-
     try {
+      const stateStr = req.query.state as string;
+      const parts = decodeURIComponent(stateStr).split('|');
+      if (parts.length < 3) return res.status(400).json({ error: 'Invalid registration state.' });
+  
+      // Use the second part for gameLower (not the first)
+      const gameLower = parts[1];
+      const formattedGame = gameLower.charAt(0).toUpperCase() + gameLower.slice(1).toLowerCase();
+      if (formattedGame !== 'Civ6' && formattedGame !== 'Civ7')
+        return res.status(400).json({ error: 'Invalid game provided in state.' });
+  
+      const discordClient = client as Client;
+      const guild = discordClient.guilds.cache.get(config.discord.guildId);
+      if (!guild) return res.status(500).json({ error: 'Discord server not found.' });
+  
+      // Fetch the Discord member using the attached profile
       const member = await guild.members.fetch(req.discord.id);
-      if (!member) return res.json({ error: 'Could not find member' });
-
+      if (!member) return res.status(404).json({ error: 'Discord member not found in the server.' });
+  
+      // Refresh roles and determine the game role to assign
       await guild.roles.fetch();
-      const roleId = gameLower === 'civ6' ? config.discord.roles.Civ6Rank : config.discord.roles.Civ7Rank;
-      const role = guild.roles.cache.get(roleId);
+      const roleKey = `${formattedGame}Rank`;
+      const roleId = (config.discord.roles as Record<string, string>)[roleKey];
+      if (!roleId)
+        return res.status(500).json({ error: 'Role configuration error. Contact an administrator.' });
+  
+      const gameRole = guild.roles.cache.get(roleId);
+      if (!gameRole)
+        return res.status(500).json({ error: 'Game role not found. Contact an administrator.' });
+  
+      // Assign the game role to the member
+      await member.roles.add(gameRole);
+      console.log(`Added role ${gameRole.name} to ${member.user.username}.`);
+  
+      // If registering for Civ6, assign the additional novice role.
+      if (formattedGame === 'Civ6') {
+        const noviceRoleId = config.discord.roles.novice; // Make sure this is defined in your config
+        if (noviceRoleId) {
+          const noviceRole = guild.roles.cache.get(noviceRoleId);
+          if (noviceRole) {
+            await member.roles.add(noviceRole);
+            console.log(`Added novice role (${noviceRole.name}) to ${member.user.username}.`);
+          } else {
+            console.error('Novice role not found in guild.');
+          }
+        }
+      }
+  
+      // Remove non-verified role if present
       const nonVerifiedRole = guild.roles.cache.get(config.discord.roles.non_verified);
-
-      if (!role) return res.json({ error: `Game role not found. Contact an admin.` });
-
-      await member.roles.add(role);
       if (nonVerifiedRole && member.roles.cache.has(nonVerifiedRole.id)) {
         await member.roles.remove(nonVerifiedRole);
+        console.log(`Removed non-verified role from ${member.user.username}.`);
       }
-
-      await AuthLogs.logRegistration(req.discord, req.steamid);
+  
+      // Log registration and authentication events
+      await AuthLogs.logRegistration(req.discord, 'Steam', req.steamid);
       await AuthLogs.logAuth(req.discord);
-
-      await Player.create({
-        discord_id: req.discord.id,
-        steam_id: req.steamid,
-        display_name: req.discord.global_name,
-        user_name: req.discord.username,
-      });
-
-      console.log(`✅ User ${req.discord.username} registered successfully!`);
-
-      // Send welcome message via DM (ignore if DMs are disabled)
+  
+      // Create a new player record in the database
+      await createPlayer(
+        req.discord.id,
+        req.steamid,
+        req.discord.username,
+        req.discord.global_name || req.discord.username
+      );
+      console.log(`User ${req.discord.username} registered in DB successfully.`);
+  
+      // Attempt to send a DM confirmation (ignore if DMs are disabled)
       try {
         await member.send(
-          `${member}, you are now registered!\n📌 Server Map: <#${process.env.CHANNEL_LIST}>\n❓ FAQ: <#${process.env.CHANNEL_FAQ}>\nℹ️ Info Hub: <#${process.env.CHANNEL_INFORMATION_HUB}>`
+          `${member}, you are now registered!\n📌 Server Map: <#${config.discord.channels.channel_list}>\n❓ FAQ: <#${config.discord.channels.faq}>\nℹ️ Info Hub: <#${config.discord.channels.info_hub}>`
         );
+        console.log(`DM sent to ${member.user.tag}.`);
       } catch {
-        console.log(`⚠️ Could not send DM to ${member.user.tag}, possibly disabled.`);
+        console.log(`Could not send DM to ${member.user.tag}.`);
       }
-
-      res.json({ success: 'Registered' });
+  
+      return res.status(201).json({ success: 'Registered successfully!' });
     } catch (error) {
-      console.error('❌ Error registering user:', error);
-      res.json({ error: 'An error occurred while registering the user' });
+      console.error('Error registering user:', error);
+      return res.status(500).json({ error: 'An error occurred while registering the user.' });
     }
   },
 };

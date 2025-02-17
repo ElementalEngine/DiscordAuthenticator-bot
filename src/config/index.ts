@@ -1,12 +1,13 @@
-import e, { CorsOptions } from 'cors'
+import cors, { CorsOptions } from 'cors'
 import { config as env } from 'dotenv'
+import { SteamConfig } from '../util/types';
 import path from 'node:path'
 
 env({
   path: path.resolve('./.env'),
 })
 
-const cors: CorsOptions = {
+const corsOptions: CorsOptions = {
   origin: process.env.CORS ?? '*',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   credentials: true,
@@ -19,37 +20,41 @@ const discord = {
   clientSecret: process.env.BOT_CLIENT_SECRET ?? '',
   guildId: process.env.DISCORD_GUILD_ID ?? '',
   channels: {
-    welcome: process.env.CHANNEL_WELCOME!,
-    channel_list: process.env.CHANNEL_LIST!,
-    faq: process.env.CHANNEL_FAQ!, 
-    info_hub: process.env.CHANNEL_INFORMATION_HUB!,
+    welcome: process.env.CHANNEL_WELCOME_ID!,
+    channel_list: process.env.CHANNEL_LIST_ID!,
+    faq: process.env.CHANNEL_FAQ_ID!, 
+    info_hub: process.env.CHANNEL_INFORMATION_HUB_ID!,
     auth_log: process.env.CHANNEL_AUTHBOT_LOG_ID!,
-    steam_log: process.env.CHANNEL_STEAM_ID!,
-    commands: process.env.CHANNEL_COMMANDS_ID!,
+    reg_log: process.env.CHANNEL_AUTHBOT_REG_ID!,
+    commands_civ6: process.env.CHANNEL_COMMANDS_CIV6_ID!,
+    commands_civ7: process.env.CHANNEL_COMMANDS_CIV7_ID!,
     bot_commands: process.env.CHANNEL_BOT_COMMANDS_ID!,
   },
   roles: {
     moderator: process.env.ROLE_MODERATOR!,
-    admin: process.env.ROLE_ADMIN!,
     Civ6Rank: process.env.ROLE_CIV6!,
     Civ7Rank: process.env.ROLE_CIV7!,
+    novice: process.env.ROLE_NOVICE!,
     non_verified: process.env.ROLE_NON_VERIFIED!,
+    manually_verify: process.env.ROLE_MANUALLY_VERIFY!,
   },
 }
 
-const steam = {
+export const steam: SteamConfig = {
   apiKey: process.env.STEAM_API_KEY ?? '',
+  partnerApiKey: process.env.STEAM_PARTNER_API_KEY ?? '',
   gameIdCiv6: 289070,
-  playTime: 120,
+  playTimeCiv6: 2880,
   gameIdCiv7: 1295660,
-}
+  playTimeCiv7: 120,
+};
 
 export const config = {
   oauth: `https://discord.com/api/oauth2/authorize?client_id=${
     discord.clientId
   }&redirect_uri=http%3A%2F%2F${process.env.HOST!}:${process.env
     .PORT!}&response_type=code&scope=identify%20connections&state=`,
-  cors,
+  cors: corsOptions,
   discord,
   host: process.env.HOST!,
   port: Number(process.env.PORT!),

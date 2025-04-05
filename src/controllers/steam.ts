@@ -16,8 +16,14 @@ export const SteamController = {
       
       // Retrieve the list of games owned by the user.
       const ownedGames = await steamClient.getUserOwnedGames(steamid);
-      if (!Array.isArray(ownedGames) || ownedGames.length === 0) {
-        return '⚠️ No games found or failed to retrieve games from Steam.';
+      
+      // Guard clause: check if ownedGames is defined and an array.
+      if (!ownedGames || !Array.isArray(ownedGames)) {
+        console.error('[ERROR] Invalid response from Steam API:', ownedGames);
+        return '⚠️ No games found or failed to retrieve games from Steam or profile set to private.';
+      }
+      if (ownedGames.length === 0) {
+        return '⚠️ No games found or failed to retrieve games from Steam or profile set to private.';
       }
       
       // Check if the user owns the specified game.
@@ -25,6 +31,7 @@ export const SteamController = {
       if (!game) return '❌ You do not own this game, or your profile is set to private.';
       
       console.log(`[INFO] Playtime for ${gameKey}: ${game.minutes} minutes`);
+      
       // Check if the playtime meets the requirement.
       if (game.minutes < requiredPlayTime) {
         return `❌ Insufficient playtime: ${game.minutes} minutes (Required: ${requiredPlayTime} minutes).`;
@@ -50,7 +57,9 @@ export const SteamController = {
     const appId = Number(config.steam[`gameId${game}`]);
     try {
       const ownedGames = await steamClient.getUserOwnedGames(steamid);
-      if (!Array.isArray(ownedGames)) return { error: '⚠️ Unexpected Steam response.' };
+      if (!ownedGames || !Array.isArray(ownedGames)) {
+        return { error: '⚠️ Unexpected Steam response.' };
+      }
       
       // Check if the user owns the specified game.
       const ownsGame = ownedGames.some(({ game: { id } }: any) => id === appId);

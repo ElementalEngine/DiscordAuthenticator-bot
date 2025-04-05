@@ -36,13 +36,13 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
     const game = interaction.options.getString('game', true);
     const userId = interaction.user.id;
 
-    // Check if user is in the correct channel
+    // Check if user is in the correct channel.
     const welcomeChannelId = process.env.CHANNEL_WELCOME_ID;
     if (interaction.channelId !== welcomeChannelId) {
       return interaction.editReply({ content: `❌ This command can only be used in <#${welcomeChannelId}>.` });
     }
 
-    // Ensure the user has the "non-verified" role
+    // Ensure the user has the "non-verified" role.
     const member = interaction.member as GuildMember;
     const nonVerifiedRoleId = process.env.ROLE_NON_VERIFIED!;
     if (!member.roles.cache.has(nonVerifiedRoleId)) {
@@ -51,7 +51,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
       });
     }
 
-    // Check if user is already registered using the queries helper
+    // Check if the user is already registered (Discord ID check).
     const existingPlayer = await findPlayerByDiscordId(userId);
     if (existingPlayer) {
       return interaction.editReply({
@@ -59,7 +59,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
       });
     }
 
-    // Restrict Epic, Xbox, and PSN accounts to Civ7 only, and for now, only steam accounts are accepted
+    // Restrict Epic, Xbox, and PSN accounts to Civ7 only. For now, only Steam accounts are accepted.
     if ((type !== 'steam') && game !== 'Civ7') {
       return interaction.editReply({
         content: `❌ ${type.toUpperCase()} accounts can **only** register for Civilization VII.`,
@@ -71,7 +71,7 @@ export const execute = async (interaction: ChatInputCommandInteraction) => {
       });
     }
 
-    // FIX: Create state with three parts: accountType|gameLower|userId
+    // Create state with three parts: accountType|gameLower|userId
     const state = encodeURIComponent(`${type}|${game.toLowerCase()}|${userId}`);
     const authUrl = `${config.oauth}${state}`;
 

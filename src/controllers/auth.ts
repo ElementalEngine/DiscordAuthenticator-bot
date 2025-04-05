@@ -52,14 +52,13 @@ export const AuthController = {
       }
       req.discord = profile;
 
-      // Check if user is already registered.
-      const existingPlayer =
-        (await findPlayerByDiscordId(profile.id)) || (await findPlayerBySteamId(profile.id));
-      if (existingPlayer) {
+      // Check if user is already registered using Discord ID.
+      const existingDiscordPlayer = await findPlayerByDiscordId(profile.id);
+      if (existingDiscordPlayer) {
         return res.status(409).json({
           error: 'You are already registered!',
-          discord_id: existingPlayer.discord_id,
-          steam_id: existingPlayer.steam_id || 'No Steam ID linked',
+          discord_id: existingDiscordPlayer.discord_id,
+          steam_id: existingDiscordPlayer.steam_id || 'No Steam ID linked',
         });
       }
 
@@ -83,6 +82,16 @@ export const AuthController = {
           return res.status(403).json({ error: steamValidationError });
         }
         req.steamid = steamConnection.id;
+
+        // Check if the Steam account is already registered.
+        const existingSteamPlayer = await findPlayerBySteamId(steamConnection.id);
+        if (existingSteamPlayer) {
+          return res.status(409).json({
+            error: 'This Steam account is already registered with a Discord account!',
+            discord_id: existingSteamPlayer.discord_id,
+            steam_id: existingSteamPlayer.steam_id,
+          });
+        }
       } else {
         return res.status(400).json({ error: 'Invalid account type provided.' });
       }
@@ -111,11 +120,11 @@ export const AuthController = {
       const guild = discordClient.guilds.cache.get(config.discord.guildId);
       if (!guild) return res.status(500).json({ error: 'Discord server not found.' });
   
-      // Fetch the Discord member using the attached profile
+      // Fetch the Discord member using the attached profile.
       const member = await guild.members.fetch(req.discord.id);
       if (!member) return res.status(404).json({ error: 'Discord member not found in the server.' });
   
-      // Refresh roles and determine the game role to assign
+      // Refresh roles and determine the game role to assign.
       await guild.roles.fetch();
       const roleKey = `${formattedGame}Rank`;
       const roleId = (config.discord.roles as Record<string, string>)[roleKey];
@@ -126,13 +135,13 @@ export const AuthController = {
       if (!gameRole)
         return res.status(500).json({ error: 'Game role not found. Contact an administrator.' });
   
-      // Assign the game role to the member
+      // Assign the game role to the member.
       await member.roles.add(gameRole);
       console.log(`Added role ${gameRole.name} to ${member.user.username}.`);
   
       // If registering for Civ6, assign the additional novice role.
       if (formattedGame === 'Civ6') {
-        const noviceRoleId = config.discord.roles.novice; // Make sure this is defined in your config
+        const noviceRoleId = config.discord.roles.novice; // Make sure this is defined in your config.
         if (noviceRoleId) {
           const noviceRole = guild.roles.cache.get(noviceRoleId);
           if (noviceRole) {
@@ -144,18 +153,18 @@ export const AuthController = {
         }
       }
   
-      // Remove non-verified role if present
+      // Remove non-verified role if present.
       const nonVerifiedRole = guild.roles.cache.get(config.discord.roles.non_verified);
       if (nonVerifiedRole && member.roles.cache.has(nonVerifiedRole.id)) {
         await member.roles.remove(nonVerifiedRole);
         console.log(`Removed non-verified role from ${member.user.username}.`);
       }
   
-      // Log registration and authentication events
+      // Log registration and authentication events.
       await AuthLogs.logRegistration(req.discord, 'Steam', req.steamid);
       await AuthLogs.logAuth(req.discord);
   
-      // Create a new player record in the database
+      // Create a new player record in the database.
       await createPlayer(
         req.discord.id,
         req.steamid,
@@ -164,7 +173,7 @@ export const AuthController = {
       );
       console.log(`User ${req.discord.username} registered in DB successfully.`);
   
-      // Attempt to send a DM confirmation (ignore if DMs are disabled)
+      // Attempt to send a DM confirmation (ignore if DMs are disabled).
       try {
         await member.send(
           `${member}, you are now registered!\n📌 Server Map: <#${config.discord.channels.channel_list}>\n❓ FAQ: <#${config.discord.channels.faq}>\nℹ️ Info Hub: <#${config.discord.channels.info_hub}>`

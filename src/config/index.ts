@@ -1,18 +1,18 @@
-import cors, { CorsOptions } from 'cors'
-import { config as env } from 'dotenv'
+import cors, { CorsOptions } from 'cors';
+import { config as env } from 'dotenv';
 import { SteamConfig } from '../util/types';
-import path from 'node:path'
+import path from 'node:path';
 
 env({
   path: path.resolve('./.env'),
-})
+});
 
 const corsOptions: CorsOptions = {
   origin: process.env.CORS ?? '*',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   credentials: true,
   exposedHeaders: ['x-auth-token'],
-}
+};
 
 const discord = {
   clientId: process.env.BOT_CLIENT_ID ?? '',
@@ -38,7 +38,7 @@ const discord = {
     non_verified: process.env.ROLE_NON_VERIFIED!,
     manually_verify: process.env.ROLE_MANUALLY_VERIFY!,
   },
-}
+};
 
 export const steam: SteamConfig = {
   apiKey: process.env.STEAM_API_KEY ?? '',
@@ -59,5 +59,5 @@ export const config = {
   host: process.env.HOST!,
   port: Number(process.env.PORT!),
   steam,
-  mongoDb: process.env.MONGO_URL!
-}
+  mongoDb: process.env.MONGO_URL!,
+};

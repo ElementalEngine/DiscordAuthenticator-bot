@@ -1,16 +1,14 @@
 import mongoose from 'mongoose'
+import { config } from './config/index.js'
+import discordClient from './discord/client.js'
+import app from './server.js'
 
-import { config } from './config'
-import discord from './discord/index'
-import app from './server'
+discordClient.login(config.discord.token)
 
-discord.login(config.discord.token)
-
-mongoose.connect(config.mongoDb)
-.then(() => console.log('Connected to Database'))
-.catch((err) => {
-  throw err
-})
+mongoose
+  .connect(config.mongoDb)
+  .then(() => console.log('Connected to Database'))
+  .catch(err => { throw err })
 
 app.listen(
   config.port,
@@ -19,4 +17,3 @@ app.listen(
     console.log(`Server running at http://${config.host}:${config.port}/`)
   }
 )
-

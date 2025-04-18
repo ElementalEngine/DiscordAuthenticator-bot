@@ -1,11 +1,9 @@
 import cors, { CorsOptions } from 'cors';
 import { config as env } from 'dotenv';
-import { SteamConfig } from '../util/types';
 import path from 'node:path';
+import { SteamConfig } from '../util/types';
 
-env({
-  path: path.resolve('./.env'),
-});
+env({ path: path.resolve('./.env') });
 
 const corsOptions: CorsOptions = {
   origin: process.env.CORS ?? '*',
@@ -22,7 +20,7 @@ const discord = {
   channels: {
     welcome: process.env.CHANNEL_WELCOME_ID!,
     channel_list: process.env.CHANNEL_LIST_ID!,
-    faq: process.env.CHANNEL_FAQ_ID!, 
+    faq: process.env.CHANNEL_FAQ_ID!,
     info_hub: process.env.CHANNEL_INFORMATION_HUB_ID!,
     auth_log: process.env.CHANNEL_AUTHBOT_LOG_ID!,
     reg_log: process.env.CHANNEL_AUTHBOT_REG_ID!,
@@ -50,10 +48,16 @@ export const steam: SteamConfig = {
 };
 
 export const config = {
-  oauth: `https://discord.com/api/oauth2/authorize?client_id=${
-    discord.clientId
-  }&redirect_uri=http%3A%2F%2F${process.env.HOST!}:${process.env
-    .PORT!}&response_type=code&scope=identify%20connections&state=`,
+  oauth: [
+    `https://discord.com/api/oauth2/authorize`,
+    `?client_id=${discord.clientId}`,
+    `&redirect_uri=${encodeURIComponent(
+    `http://${process.env.HOST!}:${process.env.PORT!}/auth/callback`
+    )}`,
+    `&response_type=code`,
+    `&scope=identify%20connections`,
+    `&state=`
+  ].join(''),
   cors: corsOptions,
   discord,
   host: process.env.HOST!,

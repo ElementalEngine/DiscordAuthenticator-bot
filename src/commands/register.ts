@@ -1,12 +1,16 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMember } from 'discord.js';
-import { config } from '../config';
-import { findPlayerByDiscordId } from '../database/queries';
+import {
+  ChatInputCommandInteraction,
+  SlashCommandBuilder,
+  GuildMember
+} from 'discord.js';
+import { config } from '../config/index.js';
+import { findPlayerByDiscordId } from '../database/queries.js';
 
 export const data = new SlashCommandBuilder()
   .setName('register')
   .setDescription('Complete registration to gain access to the server.')
-  .addStringOption((option) =>
-    option
+  .addStringOption(opt =>
+    opt
       .setName('account_type')
       .setDescription('Select the type of account you are registering.')
       .setRequired(true)
@@ -17,8 +21,8 @@ export const data = new SlashCommandBuilder()
         { name: 'PlayStation (PSN)', value: 'psn' }
       )
   )
-  .addStringOption((option) =>
-    option
+  .addStringOption(opt =>
+    opt
       .setName('game')
       .setDescription('Select the Civilization game you are playing.')
       .setRequired(true)
@@ -28,58 +32,62 @@ export const data = new SlashCommandBuilder()
       )
   );
 
-export const execute = async (interaction: ChatInputCommandInteraction) => {
-  try {
-    await interaction.deferReply({ ephemeral: true });
+export const execute = async (
+  interaction: ChatInputCommandInteraction
+): Promise<void> => {
+  await interaction.deferReply({ ephemeral: true });
 
-    const type = interaction.options.getString('account_type', true);
-    const game = interaction.options.getString('game', true);
-    const userId = interaction.user.id;
+  const type = interaction.options.getString('account_type', true);
+  const game = interaction.options.getString('game', true);
+  const userId = interaction.user.id;
 
-    // Check if user is in the correct channel.
-    const welcomeChannelId = process.env.CHANNEL_WELCOME_ID;
-    if (interaction.channelId !== welcomeChannelId) {
-      return interaction.editReply({ content: `❌ This command can only be used in <#${welcomeChannelId}>.` });
-    }
-
-    // Ensure the user has the "non-verified" role.
-    const member = interaction.member as GuildMember;
-    const nonVerifiedRoleId = process.env.ROLE_NON_VERIFIED!;
-    if (!member.roles.cache.has(nonVerifiedRoleId)) {
-      return interaction.editReply({
-        content: '❌ You do not have the required role to use this command. Only unverified users can register.',
-      });
-    }
-
-    // Check if the user is already registered (Discord ID check).
-    const existingPlayer = await findPlayerByDiscordId(userId);
-    if (existingPlayer) {
-      return interaction.editReply({
-        content: `❌ You are already registered.\n\n**Discord ID:** \`${existingPlayer.discord_id}\`\n**Steam ID:** \`${existingPlayer.steam_id || 'Not linked'}\`\n\nIf this is incorrect, please contact a moderator.`,
-      });
-    }
-
-    // Restrict Epic, Xbox, and PSN accounts to Civ7 only. For now, only Steam accounts are accepted.
-    if ((type !== 'steam') && game !== 'Civ7') {
-      return interaction.editReply({
-        content: `❌ ${type.toUpperCase()} accounts can **only** register for Civilization VII.`,
-      });
-    }
-    if (type !== 'steam') {
-      return interaction.editReply({
-        content: `⚠️ Registration for **${type.toUpperCase()}** accounts is not available yet. Please contact a moderator for assistance.`,
-      });
-    }
-
-    // Create state with three parts: accountType|gameLower|userId
-    const state = encodeURIComponent(`${type}|${game.toLowerCase()}|${userId}`);
-    const authUrl = `${config.oauth}${state}`;
-
-    return interaction.editReply({
-      content: `✅ To complete your registration, please authorize your Steam account:\n\n[Click here to authorize](${authUrl})`,
+  // Restrict to welcome channel
+  const welcomeChannel = process.env.CHANNEL_WELCOME_ID;
+  if (interaction.channelId !== welcomeChannel) {
+    await interaction.editReply({
+      content: `❌ Use this in <#${welcomeChannel}> only.`
     });
-  } catch (error) {
-    console.error('Error executing /register:', error);
-    return interaction.editReply({ content: '❌ An unexpected error occurred. Please try again later.' });
+    return;
   }
+
+  // Must have non-verified role
+  const member = interaction.member as GuildMember;
+  const nonVerified = process.env.ROLE_NON_VERIFIED!;
+  if (!member.roles.cache.has(nonVerified)) {
+    await interaction.editReply({
+      content:
+        '❌ Only unverified users can run this command (missing non-verified role).'
+    });
+    return;
+  }
+
+  // Already registered?
+  const existing = await findPlayerByDiscordId(userId);
+  if (existing) {
+    await interaction.editReply({
+      content: `❌ Already registered.\nDiscord ID: \`${existing.discord_id}\`\nSteam ID: \`${existing.steam_id ?? 'Not linked'}\``
+    });
+    return;
+  }
+
+  // Only Steam allowed for now
+  if (type !== 'steam') {
+    if (game !== 'Civ7') {
+      await interaction.editReply({
+        content: `❌ ${type.toUpperCase()} can only register for Civ7.`
+      });
+      return;
+    }
+    await interaction.editReply({
+      content: `⚠️ ${type.toUpperCase()} registration not implemented yet.`
+    });
+    return;
+  }
+
+  const state = encodeURIComponent(`${type}|${game.toLowerCase()}|${userId}`);
+  const url = `${config.oauth}${state}`;
+
+  await interaction.editReply({
+    content: `✅ Click to authorize your Steam account:\n${url}`
+  });
 };

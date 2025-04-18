@@ -1,8 +1,8 @@
 export interface DiscordProfile {
   id: string;
   username: string;
-  global_name?: string; 
-  discriminator?: string; 
+  global_name?: string;
+  discriminator?: string;
   email?: string;
   verified: boolean;
   locale?: string;
@@ -10,6 +10,7 @@ export interface DiscordProfile {
   premium_type?: number;
   avatar?: string | null;
 }
+
 export interface SteamProfile {
   steamid: string;
   personaname: string;
@@ -27,6 +28,7 @@ export interface SteamProfile {
   locstatecode?: string;
   loccityid?: string;
 }
+
 export interface SteamConfig {
   apiKey: string;
   partnerApiKey: string;

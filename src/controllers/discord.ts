@@ -1,77 +1,53 @@
-import axios from 'axios';
-import querystring from 'node:querystring';
-import { OAuth2Routes, RouteBases, Routes } from 'discord.js';
-import { config } from '../config';
-import { DiscordProfile } from '../util/types';
+import { Request, Response } from 'express';
+import { DiscordService } from '../services/discord.service.js';
 
-export const DiscordController = {
-  // Exchange an OAuth2 code for an access token.
-  getAccessToken: async (code: string): Promise<{ access_token?: string; error?: string }> => {
-    try {
-      // Build and URL-encode the payload for the token request.
-      const payload = querystring.stringify({
-        client_id: config.discord.clientId,
-        client_secret: config.discord.clientSecret,
-        code: code.trim(),
-        grant_type: 'authorization_code',
-        redirect_uri: `http://${config.host}:${config.port}`,
-        scope: 'identify connections email',
-      });
+export async function getAccessToken(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const code = req.query.code as string;
+  if (!code) {
+    res.status(400).json({ error: 'No code provided.' });
+    return;
+  }
+  const result = await DiscordService.getAccessToken(code);
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json({ access_token: result.access_token });
+}
 
-      // Request the access token from Discord.
-      const { data } = await axios.post(OAuth2Routes.tokenURL, payload, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      if (!data?.access_token) return { error: 'No access token received from Discord.' };
-      return { access_token: data.access_token };
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[DiscordController] getAccessToken failed:', errMsg);
-      return { error: errMsg };
-    }
-  },
+export async function getProfile(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const token = req.query.token as string;
+  if (!token) {
+    res.status(400).json({ error: 'No token provided.' });
+    return;
+  }
+  const result = await DiscordService.getProfile(token);
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result.profile);
+}
 
-  // Retrieve connected accounts (e.g., Steam, Xbox) for the user.
-  getConnections: async (access_token: string): Promise<{ connections?: any; error?: string }> => {
-    try {
-      const { data } = await axios.get(`${RouteBases.api}${Routes.userConnections()}`, {
-        headers: { Authorization: `Bearer ${access_token}` },
-      });
-      if (!data) return { error: 'Failed to fetch Discord connections.' };
-      return { connections: data };
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[DiscordController] getConnections failed:', errMsg);
-      return { error: errMsg };
-    }
-  },
-
-  // Retrieve the Discord profile for the authenticated user.
-  getProfile: async (access_token: string): Promise<{ profile?: DiscordProfile; error?: string }> => {
-    try {
-      const { data } = await axios.get(`${RouteBases.api}${Routes.user('@me')}`, {
-        headers: { Authorization: `Bearer ${access_token}` },
-      });
-      if (!data || !data.id) return { error: 'Failed to fetch Discord profile.' };
-
-      // Build the profile object from the returned data.
-      const profile: DiscordProfile = {
-        id: data.id,
-        username: data.username,
-        global_name: data.global_name,
-        discriminator: data.discriminator,
-        email: data.email || 'Not Available',
-        verified: data.verified,
-        locale: data.locale || 'Unknown',
-        mfa_enabled: data.mfa_enabled,
-        premium_type: data.premium_type,
-        avatar: data.avatar,
-      };
-      return { profile };
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[DiscordController] getProfile failed:', errMsg);
-      return { error: errMsg };
-    }
-  },
-};
+export async function getConnections(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const token = req.query.token as string;
+  if (!token) {
+    res.status(400).json({ error: 'No token provided.' });
+    return;
+  }
+  const result = await DiscordService.getConnections(token);
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result.connections);
+}

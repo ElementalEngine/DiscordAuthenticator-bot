@@ -1,13 +1,22 @@
-import { Router } from 'express'
+import { Router } from 'express';
+import joinRouter from './join';
+import { authenticate, registerUser } from '../controllers/auth';
 
-import { AuthController } from '../controllers'
+const router = Router();
 
-const router = Router()
+// 1) Root → redirect to /join
+router.get('/', (_req, res) => {
+  res.redirect('/join');
+});
 
-const Routes = () => {
-  //  @ts-ignore
-  router.get('/', AuthController.authenticate, AuthController.registerUser)
-  return router
-}
+// 2) /join → kick off OAuth
+router.use(joinRouter);
 
-export default Routes
+// 3) OAuth2 callback → handle auth and registration
+router.get(
+  '/auth/callback',
+  authenticate,
+  registerUser
+);
+
+export default router;

@@ -1,15 +1,15 @@
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import express from 'express';
-import { config } from './config/index.js';
-import Routes from './routes/index.js';
+import express from 'express'
+import cors from 'cors'
+import bodyParser from 'body-parser'
+import { config } from './config/index.js'
+import mainRouter from './routes/index.js'   
 
-const app = express();
+const app = express()
 
-app.use(cors(config.cors));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(cors(config.cors))
+app.use(bodyParser.json())
+app.use(bodyParser.urlencoded({ extended: false }))
 
-app.use('/', Routes());
+app.use('/', mainRouter)  
 
-export default app;
+export default app
